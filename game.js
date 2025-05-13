@@ -36,7 +36,7 @@ function animate() {
 }
 
 function generateShortId() {
-	const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+	const chars = 'abcdefghijklmnopqrstuvwxyz'
 	return chars.charAt(Math.floor(Math.random() * 26)) +
 		chars.charAt(Math.floor(Math.random() * 10));
 }
