@@ -30,8 +30,7 @@ function animate() {
 	const coords = document.getElementById('coordinates');
 	coords.innerHTML = 
 		`X: ${cube.position.x.toFixed(2)}<br>` +
-		`Y: ${cube.position.y.toFixed(2)}<br>` +
-		`Z: ${cube.position.z.toFixed(2)}`;
+		`Y: ${cube.position.y.toFixed(2)}`;
 	renderer.render(scene, camera);
 }
 
