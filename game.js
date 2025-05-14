@@ -120,9 +120,28 @@ function moveCube(direction) {
 // Add touch/click listeners
 ['up', 'down', 'left', 'right'].forEach(dir => {
   const btn = document.getElementById(dir);
-  btn.addEventListener('touchstart', () => moveCube(dir));
-  btn.addEventListener('click', () => moveCube(dir)); // fallback for desktop
+  let intervalId;
+
+  const startMoving = () => {
+    moveCube(dir); // Move immediately
+    intervalId = setInterval(() => moveCube(dir), 100); // Repeat every 100ms
+  };
+
+  const stopMoving = () => {
+    clearInterval(intervalId);
+  };
+
+  // Touch events for mobile
+  btn.addEventListener('touchstart', startMoving);
+  btn.addEventListener('touchend', stopMoving);
+  btn.addEventListener('touchcancel', stopMoving);
+
+  // Mouse events for desktop
+  btn.addEventListener('mousedown', startMoving);
+  btn.addEventListener('mouseup', stopMoving);
+  btn.addEventListener('mouseleave', stopMoving);
 });
+
 
 
 init3D();
