@@ -87,5 +87,42 @@ document.addEventListener('keydown', event => {
 		});
 	}
 });
+function moveCube(direction) {
+  let moved = false;
+  switch (direction) {
+    case 'up':
+      cube.position.y += 0.1;
+      moved = true;
+      break;
+    case 'down':
+      cube.position.y -= 0.1;
+      moved = true;
+      break;
+    case 'left':
+      cube.position.x -= 0.1;
+      moved = true;
+      break;
+    case 'right':
+      cube.position.x += 0.1;
+      moved = true;
+      break;
+  }
+
+  if (moved && conn && conn.open) {
+    conn.send({
+      type: 'move',
+      x: cube.position.x,
+      y: cube.position.y
+    });
+  }
+}
+
+// Add touch/click listeners
+['up', 'down', 'left', 'right'].forEach(dir => {
+  const btn = document.getElementById(dir);
+  btn.addEventListener('touchstart', () => moveCube(dir));
+  btn.addEventListener('click', () => moveCube(dir)); // fallback for desktop
+});
+
 
 init3D();
