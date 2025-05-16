@@ -4,8 +4,14 @@
 <head>
 	<title>3D Multiplayer Cubes</title>
 	<style>
-		body { margin: 0; overflow: hidden; }
+		body { 
+			margin: 0; 
+			overflow: hidden;
+		}
 		canvas { display: block; }
+		#gameCanvas {
+			cursor: none; /* Hide the cursor only on the game canvas */
+		}
 		button {
 			user-select: none;
 			-webkit-user-select: none; /* Safari */
@@ -14,6 +20,7 @@
 			-webkit-tap-highlight-color: transparent;
 		}
 	</style>
+
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
