@@ -4,14 +4,8 @@
 <head>
 	<title>3D Multiplayer Cubes</title>
 	<style>
-		body { 
-			margin: 0; 
-			overflow: hidden;
-		}
+		body { margin: 0; overflow: hidden; }
 		canvas { display: block; }
-		#gameCanvas {
-			cursor: none; /* Hide the cursor only on the game canvas */
-		}
 		button {
 			user-select: none;
 			-webkit-user-select: none; /* Safari */
@@ -20,7 +14,6 @@
 			-webkit-tap-highlight-color: transparent;
 		}
 	</style>
-
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
@@ -37,7 +30,8 @@
 		font-size: 14px;
 	">
 		X: 0<br>
-		Y: 0
+		Y: 0<br>
+		Z: 0
 	</div>
 	<input id="peer-id-input" placeholder="Enter friend's ID" />
 	<button id="connect-button">Connect</button>
