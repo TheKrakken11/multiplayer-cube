@@ -22,7 +22,7 @@ function init3D() {
 	light.shadow.bias = -0.005;
 	light.target.position.set(0, 0, 0);
 	scene.add(light.target);
-	const amblight = new THREE.AmbientLight(0xffffff, 0.8);
+	const amblight = new THREE.AmbientLight(0xffffff, 1.5);
 	scene.add(amblight);
 	camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
 	camera.up.set(0, 0, 1);
@@ -30,7 +30,6 @@ function init3D() {
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	renderer.domElement.style.cursor = 'none';
 	renderer.shadowMap.enabled = true;
-	renderer.shadowMap.type = THREE.PCFShadowMap;
 	document.body.appendChild(renderer.domElement);
 	const geopl = new THREE.PlaneGeometry(1000, 1000);
 	const mat = new THREE.MeshStandardMaterial({
