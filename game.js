@@ -166,7 +166,7 @@ function rotateBox() {
 	const dx = mouse.x - mx;
 	
 	if (Math.abs(dx) > 0.01) {
-		cube.rotation.z += dx * 0.00075;
+		cube.rotation.z += dx * 0.004;
 		mx = mouse.x
 	}
 }
