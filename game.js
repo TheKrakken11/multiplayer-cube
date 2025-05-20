@@ -63,6 +63,10 @@ function updateLightPosition() {
 	light.target.position.copy(cube.position); // Focus on cube, not camera
 	light.target.updateMatrixWorld();
 }
+function setHealth(percent) {
+	const healthBar = document.getElementById('health-bar');
+	healthBar.style.width = percent + '%';
+}
 function getRollingSquareCenterFromAngle(totalAngle) {
   const r = Math.SQRT2 / 2;
   const quarterTurn = Math.PI / 2;
