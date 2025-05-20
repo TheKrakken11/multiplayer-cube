@@ -154,17 +154,8 @@ function rotateBox() {
 	const dx = mouse.x - mx;
 	
 	if (Math.abs(dx) > 0.01) {
-		cube.rotation.z += dx * 0.004;
+		cube.rotation.z += dx * 0.002;
 		mx = mouse.x
-	}
-	if (conn && conn.open) {
-		conn.send({
-			type: 'move',
-			x: cube.position.x,
-			y: cube.position.y,
-			z: cube.position.z,
-			rot: cube.rotation.z
-		});
 	}
 }
 let cubevup = 0
