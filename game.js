@@ -3,6 +3,7 @@ let scene, camera, renderer;
 let cube, peerCube;
 let light;
 let peer, conn;
+let movepov = 1;
 
 function init3D() {
 	scene = new THREE.Scene();
@@ -90,10 +91,17 @@ function animate() {
 		cubevup = 0
 		cube.position.z = 0
 	}
-	camera.position.x = cube.position.x - (3*Math.sin(-cube.rotation.z));
-	camera.position.y = cube.position.y - (3*Math.cos(-cube.rotation.z));
-	camera.position.z = cube.position.z + 1.5;
-	camera.lookAt(cube.position.x, cube.position.y, cube.position.z + 1);
+	if (movepov === 1) {
+		camera.position.x = cube.position.x - (3*Math.sin(-cube.rotation.z));
+		camera.position.y = cube.position.y - (3*Math.cos(-cube.rotation.z));
+		camera.position.z = cube.position.z + 1.5;
+		camera.lookAt(cube.position.x, cube.position.y, cube.position.z + 1);
+	} else if (movepov === 0) {
+		camera.position.x = cube.position.x + (0.51*Math.sin(-cube.rotation.z));
+		camera.position.y = cube.position.y + (0.51*Math.cos(-cube.rotation.z));
+		camera.position.z = cube.position.z + 0.05
+		camera.lookAt((cube.position.x+(1*Math.sin(-cube.rotation.z))), (cube.position.y+(1*Math.cos(-cube.rotation.z))), (cube.position.z + 0.05))
+	}
 	const coords = document.getElementById('coordinates');
 	coords.innerHTML = 
 		`X: ${cube.position.x.toFixed(2)}<br>` +
@@ -194,6 +202,15 @@ document.addEventListener('keydown', event => {
 			cubevup = 0.2;
 		}
 		moved = true;
+	}
+});
+document.addEventListener('keydown', event => {
+	if (event.key === 'r') {
+		if (movepov === 1) {
+			movepov = 0;
+		} else if (movepov === 0) {
+			movepov = 1;
+		}
 	}
 });
 function moveCube(direction) {
