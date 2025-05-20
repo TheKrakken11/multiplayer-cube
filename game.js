@@ -4,6 +4,7 @@ let cube, peerCube;
 let light;
 let peer, conn;
 let movepov = 1;
+let msyup = 0;
 
 function init3D() {
 	scene = new THREE.Scene();
@@ -98,12 +99,12 @@ function animate() {
 	if (movepov === 1) {
 		camera.position.x = cube.position.x - (3*Math.sin(-cube.rotation.z));
 		camera.position.y = cube.position.y - (3*Math.cos(-cube.rotation.z));
-		camera.position.z = cube.position.z + 1.5;
+		camera.position.z = cube.position.z + 1.5 + msyup
 		camera.lookAt(cube.position.x, cube.position.y, cube.position.z + 1);
 	} else if (movepov === 0) {
 		camera.position.x = cube.position.x + (0.51*Math.sin(-cube.rotation.z));
 		camera.position.y = cube.position.y + (0.51*Math.cos(-cube.rotation.z));
-		camera.position.z = cube.position.z + 0.05
+		camera.position.z = cube.position.z + 0.05 + msyup
 		camera.lookAt((cube.position.x+(1*Math.sin(-cube.rotation.z))), (cube.position.y+(1*Math.cos(-cube.rotation.z))), (cube.position.z + 0.05))
 	}
 	const coords = document.getElementById('coordinates');
@@ -164,10 +165,13 @@ let mz = mouse.y;
 
 function rotateBox() {
 	const dx = mouse.x - mx;
-	
+	const dy = mouse.y - mz
 	if (Math.abs(dx) > 0.01) {
 		cube.rotation.z += dx * 0.005;
 		mx = mouse.x
+	}
+	if (Math.abs(dy) > 0.01) {
+		msyup += dy * 0.003
 	}
 }
 let cubevup = 0
