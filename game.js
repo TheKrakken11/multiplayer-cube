@@ -99,13 +99,13 @@ function animate() {
 	if (movepov === 1) {
 		camera.position.x = cube.position.x - (3*Math.sin(-cube.rotation.z));
 		camera.position.y = cube.position.y - (3*Math.cos(-cube.rotation.z));
-		camera.position.z = cube.position.z + 1.5 + msyup
-		camera.lookAt(cube.position.x, cube.position.y, cube.position.z + 1);
+		camera.position.z = cube.position.z + 1.5
+		camera.lookAt(cube.position.x, cube.position.y+msyup, cube.position.z + 1);
 	} else if (movepov === 0) {
 		camera.position.x = cube.position.x + (0.51*Math.sin(-cube.rotation.z));
 		camera.position.y = cube.position.y + (0.51*Math.cos(-cube.rotation.z));
-		camera.position.z = cube.position.z + 0.05 + msyup
-		camera.lookAt((cube.position.x+(1*Math.sin(-cube.rotation.z))), (cube.position.y+(1*Math.cos(-cube.rotation.z))), (cube.position.z + 0.05))
+		camera.position.z = cube.position.z + 0.05
+		camera.lookAt((cube.position.x+(1*Math.sin(-cube.rotation.z))), (cube.position.y+(1*Math.cos(-cube.rotation.z))+msyup), (cube.position.z + 0.05))
 	}
 	const coords = document.getElementById('coordinates');
 	coords.innerHTML = 
@@ -171,7 +171,7 @@ function rotateBox() {
 		mx = mouse.x
 	}
 	if (Math.abs(dy) > 0.01) {
-		msyup += dy * 0.003
+		msyup = mouse.y * 0.0005
 	}
 }
 let cubevup = 0
