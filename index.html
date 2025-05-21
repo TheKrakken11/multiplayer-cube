@@ -13,18 +13,23 @@
 			outline: none;
 			-webkit-tap-highlight-color: transparent;
 		}
-		#health-bar-container {
+		#top-bar {
 			position: absolute;
 			top: 20px;
 			right: 20px;
-			width: 280px;
-			max-width: 90vw;
+			display: flex;
+			align-items: center;
+			gap: 18px;
+			z-index: 10;
+		}
+		#health-bar-container {
+			width: 220px;
 			height: 32px;
 			background: rgba(1,0,0,0.4);
-			z-index: 10;
 			border-radius: 8px;
 			box-sizing: border-box;
-			pointer-events: none;
+			display: flex;
+			align-items: center;
 		}
 		#health-bar {
 			height: 100%;
@@ -33,32 +38,32 @@
 			transition: width 0.3s;
 			border-radius: 8px;
 		}
+		#coordinates {
+			background: rgba(0, 0, 0, 0.6);
+			color: white;
+			padding: 8px 12px;
+			font-family: monospace;
+			border-radius: 4px;
+			font-size: 14px;
+			white-space: pre-line;
+		}
 	</style>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
-	<!-- Health Bar (now at top-right of the Three.js canvas) -->
-	<div id="health-bar-container">
-		<div id="health-bar"></div>
+	<!-- Top right health bar and coordinates container -->
+	<div id="top-bar">
+		<div id="health-bar-container">
+			<div id="health-bar"></div>
+		</div>
+		<div id="coordinates">
+			X: 0<br>
+			Y: 0<br>
+			Z: 0
+		</div>
 	</div>
 
 	<p>Your ID: <span id="my-id"></span></p>
-	<div id="coordinates" style="
-		position: absolute;
-		top: 10px;
-		left: 10px;
-		background: rgba(0, 0, 0, 0.6);
-		color: white;
-		padding: 8px;
-		font-family: monospace;
-		border-radius: 4px;
-		font-size: 14px;
-		z-index: 10;
-	">
-		X: 0<br>
-		Y: 0<br>
-		Z: 0
-	</div>
 	<input id="peer-id-input" placeholder="Enter friend's ID" />
 	<button id="connect-button">Connect</button>
 	<div id="controls" style="position: fixed; bottom: 20px; left: 20px; z-index: 1000;">
@@ -71,16 +76,5 @@
 	<script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
 	<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 	<script src="game.js"></script>
-	<script>
-	// Move health bar into the canvas's parent (the body) after Three.js canvas is created
-	window.addEventListener("DOMContentLoaded", function() {
-		const healthBar = document.getElementById("health-bar-container");
-		const canvas = document.querySelector("canvas");
-		if (canvas && healthBar) {
-			// Make sure health bar is above the canvas and still in body
-			canvas.parentNode.insertBefore(healthBar, canvas.nextSibling);
-		}
-	});
-	</script>
 </body>
 </html>
