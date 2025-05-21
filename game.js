@@ -1,6 +1,6 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 window.THREE = THREE;
-import Peer from 'https://cdn.skypack.dev/peerjs';
+import Peer from 'https://jspm.dev/peerjs';
 import {
   computeBoundsTree,
   disposeBoundsTree,
