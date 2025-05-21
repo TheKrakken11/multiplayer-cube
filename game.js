@@ -1,10 +1,14 @@
-// game.js
 let scene, camera, renderer;
 let cube, peerCube;
 let light;
 let peer, conn;
 let movepov = 1;
 let msyup = 0;
+
+// Pointer lock variables
+let pointerLocked = false;
+let mx, mz;
+const mouse = new THREE.Vector2();
 
 function init3D() {
 	scene = new THREE.Scene();
@@ -155,17 +159,84 @@ function setupConnection() {
 		}
 	});
 }
-const mouse = new THREE.Vector2();
-window.addEventListener('mousemove', (event) => {
-	mouse.x = event.clientX;
-	mouse.y = event.clientY;
+
+// --- POINTER LOCK IMPLEMENTATION STARTS HERE ---
+
+// Request pointer lock on the renderer's DOM element
+function requestPointerLock() {
+	const el = renderer.domElement;
+	if (el.requestPointerLock) {
+		el.requestPointerLock();
+	} else if (el.mozRequestPointerLock) {
+		el.mozRequestPointerLock();
+	} else if (el.webkitRequestPointerLock) {
+		el.webkitRequestPointerLock();
+	}
+}
+
+// Listen for pointer lock change events
+function onPointerLockChange() {
+	const el = renderer.domElement;
+	if (
+		document.pointerLockElement === el ||
+		document.mozPointerLockElement === el ||
+		document.webkitPointerLockElement === el
+	) {
+		pointerLocked = true;
+		// Reset deltas
+		mx = 0;
+		mz = 0;
+		document.addEventListener("mousemove", pointerLockMouseMove, false);
+	} else {
+		pointerLocked = false;
+		document.removeEventListener("mousemove", pointerLockMouseMove, false);
+	}
+}
+
+// Listen for pointer lock error
+function onPointerLockError() {
+	console.error("Pointer lock failed");
+}
+
+// Mouse move handler for pointer lock
+function pointerLockMouseMove(e) {
+	const movementX = e.movementX || e.mozMovementX || e.webkitMovementX || 0;
+	const movementY = e.movementY || e.mozMovementY || e.webkitMovementY || 0;
+	mouse.x += movementX;
+	mouse.y += movementY;
+	// Clamp or wrap mouse.y as needed for your msyup logic
+}
+
+// Add pointer lock event listeners
+document.addEventListener('pointerlockchange', onPointerLockChange, false);
+document.addEventListener('mozpointerlockchange', onPointerLockChange, false);
+document.addEventListener('webkitpointerlockchange', onPointerLockChange, false);
+document.addEventListener('pointerlockerror', onPointerLockError, false);
+document.addEventListener('mozpointerlockerror', onPointerLockError, false);
+document.addEventListener('webkitpointerlockerror', onPointerLockError, false);
+
+// Start pointer lock on 'f' key press
+document.addEventListener('keydown', (event) => {
+	if (event.key === 'f' || event.key === 'F') {
+		requestPointerLock();
+	}
 });
-let mx = mouse.x;
-let mz = mouse.y;
+
+// --- END POINTER LOCK IMPLEMENTATION ---
+
+// Standard mouse tracking for when pointer lock is NOT enabled
+if (!pointerLocked) {
+	window.addEventListener('mousemove', (event) => {
+		mouse.x = event.clientX;
+		mouse.y = event.clientY;
+	});
+}
+mx = mouse.x;
+mz = mouse.y;
 
 function rotateBox() {
-	const dx = mouse.x - mx;
-	const dy = mouse.y - mz
+	const dx = pointerLocked ? (mouse.x - mx) : (mouse.x - mx);
+	const dy = pointerLocked ? (mouse.y - mz) : (mouse.y - mz)
 	if (Math.abs(dx) > 0.01) {
 		cube.rotation.z -= dx * 0.005;
 		mx = mouse.x
@@ -281,7 +352,5 @@ function moveCube(direction) {
   btn.addEventListener('mouseup', stopMoving);
   btn.addEventListener('mouseleave', stopMoving);
 });
-
-
 
 init3D();
