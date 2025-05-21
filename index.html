@@ -13,26 +13,32 @@
 			outline: none;
 			-webkit-tap-highlight-color: transparent;
 		}
-	</style>
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
-<body>
-	<!-- Health Bar -->
-	<div id="health-bar-container" style="
-		position: fixed;
-		top: 0;
-		left: 25%;
-		width: 50%;
-		height: 32px;
-		background: rgba(1,0,0,0.4);
-		z-index: 10000;
-	">
-		<div id="health-bar" style="
+		#health-bar-container {
+			position: absolute;
+			top: 10px;
+			left: 10px;
+			width: 280px;
+			max-width: 90vw;
+			height: 32px;
+			background: rgba(1,0,0,0.4);
+			z-index: 10000;
+			border-radius: 8px;
+			box-sizing: border-box;
+		}
+		#health-bar {
 			height: 100%;
 			width: 100%;
 			background: linear-gradient(90deg, #4caf50, #81c784);
 			transition: width 0.3s;
-		"></div>
+			border-radius: 8px;
+		}
+	</style>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+	<!-- Health Bar (now at top-left of the renderer canvas) -->
+	<div id="health-bar-container">
+		<div id="health-bar"></div>
 	</div>
 
 	<p>Your ID: <span id="my-id"></span></p>
@@ -59,12 +65,6 @@
 		<button id="down">↓</button>
 		<button id="right">→</button>
 	</div>
-
-	<script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
-	<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-	<script src="game.js"></script>
-</body>
-</html>
 
 	<script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
 	<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
