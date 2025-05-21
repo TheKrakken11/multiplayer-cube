@@ -1,3 +1,14 @@
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import {
+  computeBoundsTree,
+  disposeBoundsTree,
+  acceleratedRaycast,
+  computeTriangleIntersections
+} from 'https://cdn.skypack.dev/three-mesh-bvh@0.6.0';
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
+
 let scene, camera, renderer;
 let cube, peerCube;
 let light;
