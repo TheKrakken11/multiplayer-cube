@@ -167,11 +167,11 @@ function rotateBox() {
 	const dx = mouse.x - mx;
 	const dy = mouse.y - mz
 	if (Math.abs(dx) > 0.01) {
-		cube.rotation.z += dx * 0.005;
+		cube.rotation.z -= dx * 0.005;
 		mx = mouse.x
 	}
 	if (Math.abs(dy) > 0.01) {
-		msyup = mouse.y * 0.005
+		msyup = -mouse.y * 0.005
 	}
 }
 let cubevup = 0
