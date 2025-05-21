@@ -7,8 +7,70 @@ let msyup = 0;
 
 // Pointer lock variables
 let pointerLocked = false;
-let mx, mz;
 const mouse = new THREE.Vector2();
+let mx, mz;
+
+// --- POINTER LOCK IMPLEMENTATION STARTS HERE ---
+
+// Request pointer lock on the renderer's DOM element
+function requestPointerLock() {
+  const el = renderer.domElement;
+  if (el.requestPointerLock) {
+    el.requestPointerLock();
+  } else if (el.mozRequestPointerLock) {
+    el.mozRequestPointerLock();
+  } else if (el.webkitRequestPointerLock) {
+    el.webkitRequestPointerLock();
+  }
+}
+
+// Listen for pointer lock change events
+function onPointerLockChange() {
+  const el = renderer.domElement;
+  if (
+    document.pointerLockElement === el ||
+    document.mozPointerLockElement === el ||
+    document.webkitPointerLockElement === el
+  ) {
+    pointerLocked = true;
+    document.addEventListener("mousemove", pointerLockMouseMove, false);
+  } else {
+    pointerLocked = false;
+    document.removeEventListener("mousemove", pointerLockMouseMove, false);
+  }
+}
+
+// Listen for pointer lock error
+function onPointerLockError() {
+  console.error("Pointer lock failed");
+}
+
+// Only used when pointer is locked: apply deltas directly
+function pointerLockMouseMove(e) {
+  const movementX = e.movementX || e.mozMovementX || e.webkitMovementX || 0;
+  const movementY = e.movementY || e.mozMovementY || e.webkitMovementY || 0;
+  cube.rotation.z -= movementX * 0.005; // rotate horizontally
+  msyup += -movementY * 0.005;          // vertical look
+  // Optionally clamp msyup to avoid flipping over
+  msyup = Math.max(-1.5, Math.min(1.5, msyup));
+}
+
+// Add pointer lock event listeners
+document.addEventListener('pointerlockchange', onPointerLockChange, false);
+document.addEventListener('mozpointerlockchange', onPointerLockChange, false);
+document.addEventListener('webkitpointerlockchange', onPointerLockChange, false);
+document.addEventListener('pointerlockerror', onPointerLockError, false);
+document.addEventListener('mozpointerlockerror', onPointerLockError, false);
+document.addEventListener('webkitpointerlockerror', onPointerLockError, false);
+
+// Start pointer lock on 'f' key press
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'f' || event.key === 'F') {
+    requestPointerLock();
+  }
+});
+
+// --- END POINTER LOCK IMPLEMENTATION ---
 
 function init3D() {
 	scene = new THREE.Scene();
@@ -160,91 +222,34 @@ function setupConnection() {
 	});
 }
 
-// --- POINTER LOCK IMPLEMENTATION STARTS HERE ---
-
-// Request pointer lock on the renderer's DOM element
-function requestPointerLock() {
-	const el = renderer.domElement;
-	if (el.requestPointerLock) {
-		el.requestPointerLock();
-	} else if (el.mozRequestPointerLock) {
-		el.mozRequestPointerLock();
-	} else if (el.webkitRequestPointerLock) {
-		el.webkitRequestPointerLock();
-	}
-}
-
-// Listen for pointer lock change events
-function onPointerLockChange() {
-	const el = renderer.domElement;
-	if (
-		document.pointerLockElement === el ||
-		document.mozPointerLockElement === el ||
-		document.webkitPointerLockElement === el
-	) {
-		pointerLocked = true;
-		// Reset deltas
-		mx = 0;
-		mz = 0;
-		document.addEventListener("mousemove", pointerLockMouseMove, false);
-	} else {
-		pointerLocked = false;
-		document.removeEventListener("mousemove", pointerLockMouseMove, false);
-	}
-}
-
-// Listen for pointer lock error
-function onPointerLockError() {
-	console.error("Pointer lock failed");
-}
-
-// Mouse move handler for pointer lock
-function pointerLockMouseMove(e) {
-	const movementX = e.movementX || e.mozMovementX || e.webkitMovementX || 0;
-	const movementY = e.movementY || e.mozMovementY || e.webkitMovementY || 0;
-	mouse.x += movementX;
-	mouse.y += movementY;
-	// Clamp or wrap mouse.y as needed for your msyup logic
-}
-
-// Add pointer lock event listeners
-document.addEventListener('pointerlockchange', onPointerLockChange, false);
-document.addEventListener('mozpointerlockchange', onPointerLockChange, false);
-document.addEventListener('webkitpointerlockchange', onPointerLockChange, false);
-document.addEventListener('pointerlockerror', onPointerLockError, false);
-document.addEventListener('mozpointerlockerror', onPointerLockError, false);
-document.addEventListener('webkitpointerlockerror', onPointerLockError, false);
-
-// Start pointer lock on 'f' key press
-document.addEventListener('keydown', (event) => {
-	if (event.key === 'f' || event.key === 'F') {
-		requestPointerLock();
-	}
-});
-
-// --- END POINTER LOCK IMPLEMENTATION ---
-
 // Standard mouse tracking for when pointer lock is NOT enabled
-if (!pointerLocked) {
-	window.addEventListener('mousemove', (event) => {
-		mouse.x = event.clientX;
-		mouse.y = event.clientY;
-	});
-}
+window.addEventListener('mousemove', (event) => {
+  if (!pointerLocked) {
+    mouse.x = event.clientX;
+    mouse.y = event.clientY;
+  }
+});
 mx = mouse.x;
 mz = mouse.y;
 
+// Only need to handle rotation in regular mode
 function rotateBox() {
-	const dx = pointerLocked ? (mouse.x - mx) : (mouse.x - mx);
-	const dy = pointerLocked ? (mouse.y - mz) : (mouse.y - mz)
-	if (Math.abs(dx) > 0.01) {
-		cube.rotation.z -= dx * 0.005;
-		mx = mouse.x
-	}
-	if (Math.abs(dy) > 0.01) {
-		msyup = (-mouse.y + 100) * 0.005
-	}
+  if (!pointerLocked) {
+    const dx = mouse.x - mx;
+    const dy = mouse.y - mz;
+    if (Math.abs(dx) > 0.01) {
+      cube.rotation.z -= dx * 0.005;
+      mx = mouse.x;
+    }
+    if (Math.abs(dy) > 0.01) {
+      msyup = (-mouse.y + 100) * 0.005;
+      mz = mouse.y;
+    }
+    // Optionally clamp msyup
+    msyup = Math.max(-1.5, Math.min(1.5, msyup));
+  }
 }
+
 let cubevup = 0
 document.addEventListener('keydown', event => {
 	let moved = false;
