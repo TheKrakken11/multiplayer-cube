@@ -3,8 +3,7 @@ import * as Peer from 'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js';
 import {
   computeBoundsTree,
   disposeBoundsTree,
-  acceleratedRaycast,
-  computeTriangleIntersections
+  acceleratedRaycast
 } from 'https://cdn.skypack.dev/three-mesh-bvh@0.6.0';
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
