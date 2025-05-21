@@ -171,7 +171,7 @@ function rotateBox() {
 		mx = mouse.x
 	}
 	if (Math.abs(dy) > 0.01) {
-		msyup = -mouse.y * 0.005
+		msyup = (-mouse.y + 100) * 0.005
 	}
 }
 let cubevup = 0
