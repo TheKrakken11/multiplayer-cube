@@ -1,11 +1,10 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-window.THREE = THREE;
-import Peer from 'https://jspm.dev/peerjs';
+import { GLTFLoader } from './GLTFLoader.js';
 import {
   computeBoundsTree,
   disposeBoundsTree,
   acceleratedRaycast
-} from 'https://cdn.skypack.dev/three-mesh-bvh@0.6.0';
+} from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.6.0/build/index.module.js';
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -121,6 +120,13 @@ function init3D() {
 	plane.position.z = -0.5;
 	plane.receiveShadow = true;
 	scene.add(plane);
+	let car;
+	const loader = new GLTFLoader();
+	loader.load('Car.glb', (gltf) => {
+		car = gltf.scene;
+		car.position.set(10, 10, 0)
+		scene.add(car);
+	});
 	const geometry = new THREE.BoxGeometry();
 	const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
 	cube = new THREE.Mesh(geometry, material);
@@ -141,6 +147,32 @@ function updateLightPosition() {
 	light.position.copy(cube.position).add(lightdir.clone().multiplyScalar(100));
 	light.target.position.copy(cube.position); // Focus on cube, not camera
 	light.target.updateMatrixWorld();
+}
+function getApproximateIntersectionPoint(mesh1, mesh2) {
+  if (!mesh1.geometry.boundsTree) mesh1.geometry.computeBoundsTree();
+  if (!mesh2.geometry.boundsTree) mesh2.geometry.computeBoundsTree();
+
+  const intersections = mesh1.geometry.boundsTree.intersectsGeometry(
+    mesh2.geometry,
+    mesh2.matrixWorld,
+    {
+      returnIntersections: true,
+    }
+  );
+
+  if (intersections.length === 0) return null;
+
+  const { triangle1, triangle2 } = intersections[0];
+
+  const centroid1 = new THREE.Vector3();
+  triangle1.getMidpoint(centroid1);
+
+  const centroid2 = new THREE.Vector3();
+  triangle2.getMidpoint(centroid2);
+
+  const midpoint = new THREE.Vector3().addVectors(centroid1, centroid2).multiplyScalar(0.5);
+
+  return midpoint;
 }
 function setHealth(percent) {
 	const healthBar = document.getElementById('health-bar');

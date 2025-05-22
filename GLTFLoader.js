@@ -65,7 +65,7 @@ import {
 	SRGBColorSpace,
 	InstancedBufferAttribute
 } from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-import { toTrianglesDrawMode } from 'https://unpkg.com/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js';
+import { toTrianglesDrawMode } from './BufferGeometryUtils.js';
 
 /**
  * A loader for the glTF 2.0 format.
