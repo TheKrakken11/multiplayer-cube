@@ -4,11 +4,17 @@ import {
   computeBoundsTree,
   disposeBoundsTree,
   acceleratedRaycast
-} from 'https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.6.0/build/index.module.js';
+} from './index.module.js';
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
-
+await new Promise((resolve, reject) => {
+	const script = document.createElement('script');
+	script.src = 'https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js';
+	script.onload = resolve;
+	script.onerror = reject;
+	document.body.appendChild(script);
+});
 let scene, camera, renderer;
 let cube, peerCube;
 let light;
@@ -124,7 +130,9 @@ function init3D() {
 	const loader = new GLTFLoader();
 	loader.load('Car.glb', (gltf) => {
 		car = gltf.scene;
-		car.position.set(10, 10, 0)
+		car.position.set(5, 5, 0)
+		car.scale.set(0.05, 0.05, 0.05)
+		car.rotation.x = Math.PI / 2
 		scene.add(car);
 	});
 	const geometry = new THREE.BoxGeometry();
@@ -243,7 +251,7 @@ function generateShortId() {
 		chars.charAt(Math.floor(Math.random() * 10));
 }
 const myId = generateShortId();
-peer = new Peer(myId)
+peer = new window.Peer(myId)
 peer.on('open', id => {
 	document.getElementById('my-id').textContent = id;
 });
