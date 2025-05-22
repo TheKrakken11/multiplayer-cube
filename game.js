@@ -130,7 +130,7 @@ function init3D() {
 	const loader = new GLTFLoader();
 	loader.load('Car.glb', (gltf) => {
 		car = gltf.scene;
-		car.position.set(5, 5, 0)
+		car.position.set(5, 5, -0.5)
 		car.scale.set(0.05, 0.05, 0.05)
 		car.rotation.x = Math.PI / 2
 		scene.add(car);
