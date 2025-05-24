@@ -21,7 +21,9 @@ let light;
 let peer, conn;
 let movepov = 1;
 let msyup = 0;
-
+let accel = 0;
+let car;
+let keysDown = new Set();
 // Pointer lock variables
 let pointerLocked = false;
 const mouse = new THREE.Vector2();
@@ -88,8 +90,42 @@ document.addEventListener('keydown', (event) => {
 });
 
 // --- END POINTER LOCK IMPLEMENTATION ---
+function loadCar() {
+  return new Promise((resolve, reject) => {
+    const loader = new GLTFLoader();
+    loader.load(
+      'Car.glb',
+      (gltf) => {
+        const carModel = gltf.scene;
+        carModel.position.set(0, 0, 0);  // reset position inside wrapper
+        carModel.rotation.set(Math.PI / 2, 0, 0);  // rotate model so that x=π/2 becomes zero
 
-function init3D() {
+        const car = new THREE.Object3D();
+        car.add(carModel);
+
+        // Now 'car' is the wrapper; you can set position, rotation, scale on it as usual:
+        car.position.set(5, 5, -0.5);
+        car.scale.set(0.05, 0.05, 0.05);
+        car.up.set(0, 1, 0);
+
+        // Set userData on the wrapper object
+        car.userData = {
+          type: 'car',
+          maxSeats: 4,
+          seats: 0,
+          speed: 0
+        };
+
+        resolve(car);
+      },
+      undefined,
+      (error) => reject(error)
+    );
+  });
+}
+
+
+async function init3D() {
 	scene = new THREE.Scene();
 	scene.background = new THREE.Color(0x87ceeb);
 	light = new THREE.DirectionalLight(0xffffff, 2);
@@ -126,15 +162,8 @@ function init3D() {
 	plane.position.z = -0.5;
 	plane.receiveShadow = true;
 	scene.add(plane);
-	let car;
-	const loader = new GLTFLoader();
-	loader.load('Car.glb', (gltf) => {
-		car = gltf.scene;
-		car.position.set(5, 5, -0.5)
-		car.scale.set(0.05, 0.05, 0.05)
-		car.rotation.x = Math.PI / 2
-		scene.add(car);
-	});
+	car = await loadCar();
+	scene.add(car)
 	const geometry = new THREE.BoxGeometry();
 	const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
 	cube = new THREE.Mesh(geometry, material);
@@ -182,6 +211,45 @@ function getApproximateIntersectionPoint(mesh1, mesh2) {
 
   return midpoint;
 }
+const raycaster = new THREE.Raycaster();
+const forward = new THREE.Vector3();
+
+function canMount(player, vehicle, maxDistance = 3) {
+	const playerPos = new THREE.Vector3();
+	player.getWorldPosition(playerPos);
+	const vehiclePos = new THREE.Vector3();
+	vehicle.getWorldPosition(vehiclePos);
+	const distance = playerPos.distanceTo(vehiclePos);
+	if (distance > maxDistance) return false;
+	forward.set(0, 1, 0)
+	forward.applyQuaternion(player.quaternion).normalize();
+	raycaster.set(playerPos, forward);
+	const intersects = raycaster.intersectObject(vehicle, true);
+	return intersects.length > 0;
+}
+
+function mountVehicle(player, vehicle) {
+	if (vehicle.userData.seats >= vehicle.userData.maxSeats) {
+		return false;
+	}
+	const seatNumber = vehicle.userData.seats + 1;
+	player.riding = {
+		id : vehicle,
+		seat : seatNumber,
+		type : vehicle.userData.type
+	};
+	return true;
+}
+function dismountVehicle(player) {
+	if (!player.riding) return;
+	const vehicle = player.riding.id;
+	vehicle.userData.seats = Math.max(vehicle.userData.seats - 1, 0);
+	vehicle.userData.speed = 0
+	const worldPos = new THREE.Vector3();
+	player.getWorldPosition(worldPos);
+	player.position.copy(worldPos);
+	player.riding = null;
+}
 function setHealth(percent) {
 	const healthBar = document.getElementById('health-bar');
 	healthBar.style.width = percent + '%';
@@ -207,26 +275,82 @@ function getRollingSquareCenterFromAngle(totalAngle) {
 function animate() {
 	requestAnimationFrame(animate);
 	rotateBox();
-	cube.position.z += cubevup
-	if (cube.position.z > 0) {
-		cubevup -= 0.01
-	} else {
-		cubevup = 0
-		cube.position.z = 0
+	if (!cube.riding) {
+		cube.position.z += cubevup;
+		if (cube.position.z > 0) {
+			cubevup -= 0.01
+		} else {
+			cubevup = 0
+			cube.position.z = 0
+		}
+		if (movepov === 1) {
+			camera.position.x = cube.position.x - (3*Math.sin(-cube.rotation.z));
+			camera.position.y = cube.position.y - (3*Math.cos(-cube.rotation.z));
+			camera.position.z = cube.position.z + 1.5;
+			cube.visible = true
+			camera.lookAt(cube.position.x, cube.position.y, cube.position.z + 1 + msyup);
+		} else if (movepov === 0) {
+			camera.position.x = cube.position.x + (0.51*Math.sin(-cube.rotation.z));
+			camera.position.y = cube.position.y + (0.51*Math.cos(-cube.rotation.z));
+			camera.position.z = cube.position.z + 0.05;
+			cube.visible = false
+			camera.lookAt((cube.position.x+(1*Math.sin(-cube.rotation.z))), (cube.position.y+(1*Math.cos(-cube.rotation.z))), (cube.position.z + 0.05 + msyup))
+		}
+	} else if (cube.riding.type === 'car') {
+		const rdvhl = cube.riding.id;
+		rdvhl.position.x -= rdvhl.userData.speed * Math.sin(-car.rotation.z)
+		rdvhl.position.y -= rdvhl.userData.speed * Math.cos(-car.rotation.z)
+		cube.visible = false;
+		cube.position.copy(rdvhl.position)
+		if (cube.riding.seat === 1) {
+			rdvhl.rotation.z = cube.rotation.z
+			if (keysDown.has('w') || keysDown.has('s')) {
+				rdvhl.userData.speed += accel;
+				// Clamp speed between -1 and 1
+				rdvhl.userData.speed = Math.min(Math.max(rdvhl.userData.speed, -0.25), 0.25);
+			}
+			if (movepov === 0) {
+				const offset = new THREE.Vector3(0.5, -0.75, 1.5); 
+				offset.applyQuaternion(rdvhl.quaternion);
+				camera.position.copy(rdvhl.position.clone().add(offset));
+
+				const lookAtOffset = new THREE.Vector3(0.5, -1, 1.5);
+				lookAtOffset.applyQuaternion(rdvhl.quaternion);
+				camera.lookAt(rdvhl.position.clone().add(lookAtOffset));
+			} else if (movepov === 1) {
+				const relativeCameraOffset = new THREE.Vector3(0, 6, 3);
+				const desiredCameraPos = relativeCameraOffset.clone().applyQuaternion(rdvhl.quaternion).add(rdvhl.position);
+
+				const lookAtOffset = new THREE.Vector3(0, 2, 2.75);
+				const desiredLookAt = lookAtOffset.clone().applyQuaternion(rdvhl.quaternion).add(rdvhl.position);
+
+				// Detect significant rotation change
+				const currentQuat = camera.quaternion.clone();
+				const targetQuat = rdvhl.quaternion.clone();
+				const angle = currentQuat.angleTo(targetQuat);
+
+				const snapRotationThreshold = 0.2; // radians (~11.5 degrees)
+
+				if (angle > snapRotationThreshold) {
+					// Snap immediately
+					camera.position.copy(desiredCameraPos);
+				} else {
+					// Smooth follow
+					camera.position.lerp(desiredCameraPos, 0.3);
+				}
+
+				camera.lookAt(desiredLookAt);
+			}
+
+		}
 	}
-	if (movepov === 1) {
-		camera.position.x = cube.position.x - (3*Math.sin(-cube.rotation.z));
-		camera.position.y = cube.position.y - (3*Math.cos(-cube.rotation.z));
-		camera.position.z = cube.position.z + 1.5;
-		cube.visible = true
-		camera.lookAt(cube.position.x, cube.position.y, cube.position.z + 1 + msyup);
-	} else if (movepov === 0) {
-		camera.position.x = cube.position.x + (0.51*Math.sin(-cube.rotation.z));
-		camera.position.y = cube.position.y + (0.51*Math.cos(-cube.rotation.z));
-		camera.position.z = cube.position.z + 0.05;
-		cube.visible = false
-		camera.lookAt((cube.position.x+(1*Math.sin(-cube.rotation.z))), (cube.position.y+(1*Math.cos(-cube.rotation.z))), (cube.position.z + 0.05 + msyup))
+	if (car.userData.seats === 0 && car.userData.speed !== 0) {
+		car.userData.speed *= 0.95
+		if (Math.abs(car.userData.speed) < 0.01) {
+			car.userData.speed = 0
+		}
 	}
+		
 	const coords = document.getElementById('coordinates');
 	coords.innerHTML = 
 		`X: ${cube.position.x.toFixed(2)}<br>` +
@@ -308,38 +432,49 @@ let cubevup = 0
 document.addEventListener('keydown', event => {
 	let moved = false;
 	if (event.key === 'w') {
-		cube.position.y += 0.1*(Math.cos(-cube.rotation.z));
-		cube.position.x += 0.1*(Math.sin(-cube.rotation.z));
-		if (cubevup === 0) {
-			cubevup = 0.05;
+		if (!cube.riding) {
+			cube.position.y += 0.1*(Math.cos(-cube.rotation.z));
+			cube.position.x += 0.1*(Math.sin(-cube.rotation.z));
+			if (cubevup === 0) {
+				cubevup = 0.05;
+			}
+		} else if (cube.riding.type === 'car' && cube.riding.seat === 1) {
+			accel = 0.05
 		}
 		moved = true;
 	} else if (event.key === 's') {
-		cube.position.y -= 0.1*(Math.cos(-cube.rotation.z));
-		cube.position.x -= 0.1*(Math.sin(-cube.rotation.z));
-		if (cubevup === 0) {
-			cubevup = 0.05;
+		if (!cube.riding) {
+			cube.position.y -= 0.1*(Math.cos(-cube.rotation.z));
+			cube.position.x -= 0.1*(Math.sin(-cube.rotation.z));
+			if (cubevup === 0) {
+				cubevup = 0.05;
+			}
+		} else if (cube.riding.type === 'car' && cube.riding.seat === 1) {
+			accel = -0.05
 		}
 		moved = true;
-	} else if (event.key === 'a') {
-		cube.position.y -= 0.1*(Math.sin(cube.rotation.z));
-		cube.position.x -= 0.1*(Math.cos(cube.rotation.z));
-		if (cubevup === 0) {
-			cubevup = 0.05;
+	}
+	if (!cube.riding) {
+		if (event.key === 'a') {
+			cube.position.y -= 0.1*(Math.sin(cube.rotation.z));
+			cube.position.x -= 0.1*(Math.cos(cube.rotation.z));
+			if (cubevup === 0) {
+				cubevup = 0.05;
+			}
+			moved = true;
+		} else if (event.key === 'd') {
+			cube.position.y += 0.1*(Math.sin(cube.rotation.z));
+			cube.position.x += 0.1*(Math.cos(cube.rotation.z));
+			if (cubevup === 0) {
+				cubevup = 0.05;
+			}
+			moved = true;
+		} else if (event.key === ' ') {
+			if (cubevup === 0) {
+				cubevup = 0.2;
+			}
+			moved = true;
 		}
-		moved = true;
-	} else if (event.key === 'd') {
-		cube.position.y += 0.1*(Math.sin(cube.rotation.z));
-		cube.position.x += 0.1*(Math.cos(cube.rotation.z));
-		if (cubevup === 0) {
-			cubevup = 0.05;
-		}
-		moved = true;
-	} else if (event.key === ' ') {
-		if (cubevup === 0) {
-			cubevup = 0.2;
-		}
-		moved = true;
 	}
 });
 document.addEventListener('keydown', event => {
@@ -350,6 +485,22 @@ document.addEventListener('keydown', event => {
 			movepov = 1;
 		}
 	}
+});
+document.addEventListener('keydown', event => {
+	if (event.key === 'e') {
+		if (!cube.riding && canMount(cube, car)) {
+			mountVehicle(cube, car);
+		}
+	}
+	if (event.key === 'q' && cube.riding) {
+		dismountVehicle(cube);
+	}
+});
+document.addEventListener('keydown', event => {
+	keysDown.add(event.key.toLowerCase());
+});
+document.addEventListener('keyup', event => {
+	keysDown.delete(event.key.toLowerCase());
 });
 function moveCube(direction) {
   let moved = false;
