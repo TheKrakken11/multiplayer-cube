@@ -163,6 +163,7 @@ async function init3D() {
 	plane.receiveShadow = true;
 	scene.add(plane);
 	car = await loadCar();
+	car.name = 'car';
 	scene.add(car)
 	const geometry = new THREE.BoxGeometry();
 	const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
@@ -359,12 +360,29 @@ function animate() {
 	updateLightPosition();
 	if (conn && conn.open) {
 		conn.send({
-			type: 'move',
-			x: cube.position.x,
-			y: cube.position.y,
-			z: cube.position.z,
-			rot: cube.rotation.z
-		});
+  		type: 'move',
+  			cube: {
+    			x: cube.position.x,
+    			y: cube.position.y,
+    			z: cube.position.z,
+    			rot: cube.rotation.z,
+    			riding: cube.riding ? {
+      			id: cube.riding.id.name, // 'car'
+      			seat: cube.riding.seat,
+      			type: cube.riding.type
+    			} : null
+  			},
+  			vehicle: (cube.riding && cube.riding.seat === 1) ? {
+    			id: cube.riding.id.name,
+    			pos: {
+      			x: cube.riding.id.position.x,
+      			y: cube.riding.id.position.y,
+      			z: cube.riding.id.position.z
+    		},
+    		rotZ: cube.riding.id.rotation.z,
+    		speed: cube.riding.id.userData.speed
+  } : null
+});
 	}
 	renderer.render(scene, camera);
 }
@@ -390,14 +408,34 @@ peer.on('connection', connection => {
 });
 
 function setupConnection() {
-	conn.on('data', data => {
-		if (data.type === 'move') {
-			peerCube.position.x = data.x;
-			peerCube.position.y = data.y;
-			peerCube.position.z = data.z;
-			peerCube.rotation.z = data.rot
-		}
-	});
+  conn.on('data', data => {
+    if (data.type === 'move') {
+      const c = data.cube;
+
+      // Update peer cube position and rotation
+      peerCube.position.set(c.x, c.y, c.z);
+      peerCube.rotation.z = c.rot;
+
+      // Handle peer riding logic
+      if (c.riding && c.riding.id === 'car') {
+        peerCube.visible = false;
+        peerCube.position.copy(car.position); // Attach peer to car
+      } else {
+        peerCube.visible = true;
+      }
+
+      // Update car position if peer is driving
+      if (data.vehicle && data.vehicle.id === 'car') {
+        car.position.set(
+          data.vehicle.pos.x,
+          data.vehicle.pos.y,
+          data.vehicle.pos.z
+        );
+        car.rotation.z = data.vehicle.rotZ;
+        car.userData.speed = data.vehicle.speed;
+      }
+    }
+  });
 }
 
 // Standard mouse tracking for when pointer lock is NOT enabled
