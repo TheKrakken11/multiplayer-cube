@@ -48,6 +48,41 @@
 			gap: 18px;
 			z-index: 10;
 		}
+		#helpModal {
+			display: none;
+			position: fixed;
+			z-index: 1000;
+			left: 0;
+			top: 0;
+			width: 100%;
+			height: 100%;
+			overflow: auto;
+			background-color: rgba(0, 0, 0, 0.6);
+		}
+		#helpContent {
+			background-color: #fff;
+			margin: 10% auto;
+			padding: 20px;
+			border-radius: 8px;
+			width: 80%;
+			max-width: 500px;
+			box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+		}
+		#closeHelp {
+			float: right;
+			font-size: 20px;
+			font-weight: bold;
+			cursor: pointer;
+		}
+		#top-bar2 {
+			position: absolute;
+			top: 20px;
+			right: 20px;
+			display: flex;
+			align-items: center;
+			gap: 18px;
+			z-index: 10;
+		}
 		#health-bar-container {
 			width: 220px;
 			height: 32px;
@@ -111,9 +146,32 @@
 			<p>Networking by Peer.js</p>
 			<p>Optimized Collision Detection via three-mesh-bvh</p>
 			<p>Car by Poly by Google [CC-BY] (https://creativecommons.org/licenses/by/3.0/) via Poly Pizza (https://poly.pizza/m/75h3mi6uHuC)</p>
+			<p>Truckk by KolosStudios [CC-BY] (https://creativecommons.org/licenses/by/3.0/) via Poly Pizza (https://poly.pizza/m/jHwRymyg2C)</p>
 		</div>
 	</div>	
-
+	<button onclick="document.getElementById('helpModal').style.display='block'">
+		Help
+	</button>
+	<div id="helpModal">
+		<div id="helpContent">
+			<span id="closeHelp" onclick="document.getElementById('helpModal').style.display='none'">&times;</span>
+			<h2>Key Controls Help</h2>
+			<p>w = forward</p>
+			<p>a = left</p>
+			<p>s = back</p>
+			<p>d = right</p>
+			<p>q = dismount vehicle</p>
+			<p>e = mount vehicle</p>
+			<p>r = switch pov</p>
+			<p>f = prevent cursor from exiting screen</p>
+			<p>esc = allow cursor to exit screen</p>
+			<h2>Other</h2>
+			<p>move mouse left and right to rotate view</p>
+			<p>enter a friend's capital letter id in the top left corner box</p>
+			<p>tap connect to connect with a friend</p>
+			<p>movement will not go left and right while you are in a car or truck</p>
+		</div>
+	</div>
 	<script type="module" src="game.js"></script>
 </body>
 </html>

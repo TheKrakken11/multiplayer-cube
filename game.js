@@ -22,7 +22,7 @@ let peer, conn;
 let movepov = 1;
 let msyup = 0;
 let accel = 0;
-let car, car2;
+let car, car2, truck, truck2;
 const vehicles = [];
 let keysDown = new Set();
 // Pointer lock variables
@@ -113,7 +113,7 @@ function loadCar() {
         car.userData = {
           type: 'car',
           maxSeats: 4,
-          seats: 0,
+          seats: [1, 2, 3, 4],
           speed: 0
         };
 
@@ -124,7 +124,39 @@ function loadCar() {
     );
   });
 }
+function loadTruck() {
+  return new Promise((resolve, reject) => {
+    const loader = new GLTFLoader();
+    loader.load(
+      'Truck.glb',
+      (gltf) => {
+        const carModel = gltf.scene;
+        carModel.position.set(-5.75, 0, 0);  // reset position inside wrapper
+        carModel.rotation.set(Math.PI / 2, Math.PI / 2, 0);  // rotate model so that x=π/2 becomes zero
+		
+        const car = new THREE.Object3D();
+        car.add(carModel);
 
+        // Now 'car' is the wrapper; you can set position, rotation, scale on it as usual:
+        car.position.set(5, 5, -0.5);
+        car.scale.set(0.5, 0.5, 0.5);
+        car.up.set(0, 1, 0);
+
+        // Set userData on the wrapper object
+        car.userData = {
+          type: 'car',
+          maxSeats: 10,
+          seats: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+          speed: 0
+        };
+
+        resolve(car);
+      },
+      undefined,
+      (error) => reject(error)
+    );
+  });
+}
 
 async function init3D() {
 	scene = new THREE.Scene();
@@ -168,10 +200,20 @@ async function init3D() {
 	vehicles.push(car);
 	scene.add(car);
 	car2 = await loadCar();
-	car2.position.set(10, 5, -0.5);
+	car2.position.set(8, 5, -0.5);
 	car2.name = 'car2';
 	vehicles.push(car2);
 	scene.add(car2);
+	truck = await loadTruck();
+	truck.position.set(11, 5, -0.5);
+	truck.name = 'truck';
+	vehicles.push(truck);
+	scene.add(truck);
+	truck2 = await loadTruck();
+	truck2.position.set(14, 5, -0.5);
+	truck2.name = 'truck2';
+	vehicles.push(truck2);
+	scene.add(truck2);
 	const geometry = new THREE.BoxGeometry();
 	const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
 	cube = new THREE.Mesh(geometry, material);
@@ -237,17 +279,16 @@ function canMount(player, vehicle, maxDistance = 3) {
 }
 
 function mountVehicle(player, vehicle) {
-	if (vehicle.userData.seats >= vehicle.userData.maxSeats) {
+	if (vehicle.userData.seats.length === 0) {
 		return false;
 	}
-	const seatNumber = vehicle.userData.seats + 1;
+	const seatNumber = vehicle.userData.seats.shift();
 	player.rotation.z = vehicle.rotation.z
 	player.riding = {
 		id : vehicle,
 		seat : seatNumber,
 		type : vehicle.userData.type
 	};
-	vehicle.userData.seats += 1;
 	if (conn && conn.open) {
 		conn.send({
 			type: 'seats',
@@ -260,12 +301,23 @@ function mountVehicle(player, vehicle) {
 function dismountVehicle(player) {
 	if (!player.riding) return;
 	const vehicle = player.riding.id;
-	vehicle.userData.seats = Math.max(vehicle.userData.seats - 1, 0);
+	const seatNumber = player.riding.seat;
+	if (!vehicle.userData.seats.includes(seatNumber)) {
+		vehicle.userData.seats.push(seatNumber);
+		vehicle.userData.seats.sort();
+	}
 	vehicle.userData.speed = 0
 	const worldPos = new THREE.Vector3();
 	player.getWorldPosition(worldPos);
 	player.position.set(worldPos.x + 3, worldPos.y + 3, worldPos.z);
 	player.riding = null;
+	if (conn && conn.open) {
+		conn.send({
+			type: 'seats',
+			vehiclename: vehicle.name,
+			seats: vehicle.userData.seats
+		});
+	}
 }
 function setHealth(percent) {
 	const healthBar = document.getElementById('health-bar');
@@ -327,11 +379,20 @@ function animate() {
 				rdvhl.userData.speed = Math.min(Math.max(rdvhl.userData.speed, -0.25), 0.25);
 			}
 			if (movepov === 0) {
-				const offset = new THREE.Vector3(0.5, -0.75, 1.5); 
+				let offset
+				if (!cube.riding.id.name.includes('truck')) {
+					offset = new THREE.Vector3(0.5, -0.75, 1.5);
+				} else if (cube.riding.id.name.includes('truck')) {
+					offset = new THREE.Vector3(0.5, -1.25, 1.75);
+				} 
 				offset.applyQuaternion(rdvhl.quaternion);
 				camera.position.copy(rdvhl.position.clone().add(offset));
-
-				const lookAtOffset = new THREE.Vector3(0.5, -1, 1.5);
+				let lookAtOffset
+				if (!cube.riding.id.name.includes('truck')) {
+					lookAtOffset = new THREE.Vector3(0.5, -1, 1.5);
+				} else if (cube.riding.id.name.includes('truck')) {
+					lookAtOffset = new THREE.Vector3(0.5, -1.5, 1.75);
+				}
 				lookAtOffset.applyQuaternion(rdvhl.quaternion);
 				camera.lookAt(rdvhl.position.clone().add(lookAtOffset));
 			} else if (movepov === 1) {
@@ -361,11 +422,20 @@ function animate() {
 
 		} else if (cube.riding.seat === 2) {
 			if (movepov === 0) {
-				const offset = new THREE.Vector3(-0.5, -0.75, 1.5); 
+				let offset
+				if (!cube.riding.id.name.includes('truck')) {
+					offset = new THREE.Vector3(-0.5, -0.75, 1.5);
+				} else if (cube.riding.id.name.includes('truck')) {
+					offset = new THREE.Vector3(-0.5, -1.25, 1.75);
+				} 
 				offset.applyQuaternion(rdvhl.quaternion);
 				camera.position.copy(rdvhl.position.clone().add(offset));
-
-				const lookAtOffset = new THREE.Vector3(-0.5, -1, 1.5);
+				let lookAtOffset
+				if (!cube.riding.id.name.includes('truck')) {
+					lookAtOffset = new THREE.Vector3(-0.5, -1, 1.5);
+				} else if (cube.riding.id.name.includes('truck')) {
+					lookAtOffset = new THREE.Vector3(-0.5, -1.5, 1.75);
+				}
 				lookAtOffset.applyQuaternion(rdvhl.quaternion);
 				camera.lookAt(rdvhl.position.clone().add(lookAtOffset));
 			} else if (movepov === 1) {
@@ -431,30 +501,31 @@ function animate() {
 	updateLightPosition();
 	if (conn && conn.open) {
 		conn.send({
-  		type: 'move',
-  			cube: {
-    			x: cube.position.x,
-    			y: cube.position.y,
-    			z: cube.position.z,
-    			rot: cube.rotation.z,
-    			riding: cube.riding ? {
-      			id: cube.riding.id.name, // 'car'
-      			seat: cube.riding.seat,
-      			type: cube.riding.type
-    			} : null
-  			},
-  			vehicle: (cube.riding && cube.riding.seat === 1) ? {
-    			id: cube.riding.id.name,
-    			pos: {
-      			x: cube.riding.id.position.x,
-      			y: cube.riding.id.position.y,
-      			z: cube.riding.id.position.z
-    		},
-    		rotZ: cube.riding.id.rotation.z,
-    		speed: cube.riding.id.userData.speed,
-    		seats: cube.riding.id.userData.seats
-  } : null
-});
+			type: 'move',
+			cube: {
+				x: cube.position.x,
+				y: cube.position.y,
+				z: cube.position.z,
+				rot: cube.rotation.z,
+				riding: cube.riding ? {
+					id: cube.riding.id.name,
+					seat: cube.riding.seat,
+					type: cube.riding.type
+				} : null
+			},
+			// Only send vehicle data if this player is the driver
+			vehicle: (cube.riding && cube.riding.seat === 1) ? {
+				id: cube.riding.id.name,
+				pos: {
+					x: cube.riding.id.position.x,
+					y: cube.riding.id.position.y,
+					z: cube.riding.id.position.z
+				},
+				rotZ: cube.riding.id.rotation.z,
+				speed: cube.riding.id.userData.speed,
+				seats: cube.riding.id.userData.seats
+			} : undefined // not null, so 'vehicle' is omitted entirely if not driver
+		});
 	}
 	renderer.render(scene, camera);
 }
@@ -490,21 +561,21 @@ function setupConnection() {
 
       // Handle peer riding logic
       if (c.riding) {
-		  const vehicle = vehicles.find(obj => obj.name === data.vehicle.id);
-		  if (vehicle) {
-			  peerCube.visible = false;
-			  peerCube.position.copy(vehicle.position);
-		  } else {
-			  peerCube.visible = true;
-		  }
-	  } else {
-		  peerCube.visible = true;
-	  }
+		const vehicle = vehicles.find(obj => obj.name === c.riding.id);
+		if (vehicle) {
+			peerCube.visible = false;
+			peerCube.position.copy(vehicle.position);
+		} else {
+			peerCube.visible = true;
+		}
+	} else {
+		peerCube.visible = true;
+	}
 
-      // Update car position if peer is driving
-      if (data.vehicle) {
-		  const vehicle = vehicles.find(obj => obj.name === data.vehicle.id);
-		  if (vehicle) {
+	// Only apply vehicle movement updates if we got them (i.e., from driver)
+	if (data.vehicle) {
+		const vehicle = vehicles.find(obj => obj.name === data.vehicle.id);
+		if (vehicle) {
 			vehicle.position.set(
 				data.vehicle.pos.x,
 				data.vehicle.pos.y,
@@ -513,8 +584,8 @@ function setupConnection() {
 			vehicle.rotation.z = data.vehicle.rotZ;
 			vehicle.userData.speed = data.vehicle.speed;
 			vehicle.userData.seats = data.vehicle.seats;
-		  }
-	  }
+		}
+	}
 	} else if (data.type === 'seats') {
 		const vehicle = vehicles.find(obj => obj.name === data.vehiclename);
 		if (vehicle) {
