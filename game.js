@@ -16,7 +16,7 @@ await new Promise((resolve, reject) => {
 	document.body.appendChild(script);
 });
 let scene, camera, renderer;
-let cube, peerCube;
+let cube, peerCube, plane;
 let light;
 let peer, conn;
 let movepov = 1;
@@ -235,32 +235,39 @@ function updateLightPosition() {
 	light.target.position.copy(cube.position); // Focus on cube, not camera
 	light.target.updateMatrixWorld();
 }
-function getApproximateIntersectionPoint(mesh1, mesh2) {
-  if (!mesh1.geometry.boundsTree) mesh1.geometry.computeBoundsTree();
-  if (!mesh2.geometry.boundsTree) mesh2.geometry.computeBoundsTree();
-
-  const intersections = mesh1.geometry.boundsTree.intersectsGeometry(
-    mesh2.geometry,
-    mesh2.matrixWorld,
-    {
-      returnIntersections: true,
-    }
-  );
-
-  if (intersections.length === 0) return null;
-
-  const { triangle1, triangle2 } = intersections[0];
-
-  const centroid1 = new THREE.Vector3();
-  triangle1.getMidpoint(centroid1);
-
-  const centroid2 = new THREE.Vector3();
-  triangle2.getMidpoint(centroid2);
-
-  const midpoint = new THREE.Vector3().addVectors(centroid1, centroid2).multiplyScalar(0.5);
-
-  return midpoint;
+function wouldHit(cube, direction, scene, rayDistance = 0.1, rayDensity = 3) {
+	const dir = direction.clone().normalize();
+	const geomet = cube.geometry.clone();
+	geomet.applyMatrix4(cube.matrixWorld);
+	const bbox = new THREE.Box3().setFromObject(cube);
+	const center = bbox.getCenter(new THREE.Vector3());
+	const size = bbox.getSize(new THREE.Vector3());
+	const rays = [];
+	const up = new THREE.Vector3(0, 0, 1);
+	const tangent = new THREE.Vector3().crossVectors(dir, up).normalize();
+	const bitangent = new THREE.Vector3().crossVectors(dir, tangent).normalize();
+	for (let i = -rayDensity; i <= rayDensity; i++) {
+		for (let j = -rayDensity; j <= rayDensity; j++) {
+			const offset = tangent.clone().multiplyScalar(i * size.x / (2 * rayDensity))
+				.add(bitangent.clone().multiplyScalar(j * size.y / (2 * rayDensity)));
+			const origin = center.clone().add(offset);
+			rays.push(origin);
+		}
+	}
+	const testObjects = [];
+	scene.traverse(obj => {
+		if (obj.isMesh && obj !== cube && obj !== plane) testObjects.push(obj);
+	});
+	for (const origin of rays) {
+		raycaster.set(origin, dir);
+		const hits = raycaster.intersectObjects(testObjects, true);
+		if (hits.length > 0 && hits[0].distance <= rayDistance) {
+			return true;
+		}
+	}
+	return false;
 }
+
 const raycaster = new THREE.Raycaster();
 const forward = new THREE.Vector3();
 
@@ -628,10 +635,14 @@ document.addEventListener('keydown', event => {
 	let moved = false;
 	if (event.key === 'w') {
 		if (!cube.riding) {
-			cube.position.y += 0.1*(Math.cos(-cube.rotation.z));
-			cube.position.x += 0.1*(Math.sin(-cube.rotation.z));
-			if (cubevup === 0) {
-				cubevup = 0.05;
+			const direction = new THREE.Vector3(0, 1, 0);
+			direction.applyAxisAngle(new THREE.Vector3(0, 0, 1), cube.rotation.z);
+			if (!wouldHit(cube, direction, scene, 0.7)) {
+				cube.position.y += 0.1*(Math.cos(-cube.rotation.z));
+				cube.position.x += 0.1*(Math.sin(-cube.rotation.z));
+				if (cubevup === 0) {
+					cubevup = 0.05;
+				}
 			}
 		} else if (cube.riding.type === 'car' && cube.riding.seat === 1) {
 			accel = 0.05
@@ -639,10 +650,14 @@ document.addEventListener('keydown', event => {
 		moved = true;
 	} else if (event.key === 's') {
 		if (!cube.riding) {
-			cube.position.y -= 0.1*(Math.cos(-cube.rotation.z));
-			cube.position.x -= 0.1*(Math.sin(-cube.rotation.z));
-			if (cubevup === 0) {
-				cubevup = 0.05;
+			const direction = new THREE.Vector3(0, -1, 0);
+			direction.applyAxisAngle(new THREE.Vector3(0, 0, 1), cube.rotation.z);
+			if (!wouldHit(cube, direction, scene, 0.7)) {
+				cube.position.y -= 0.1*(Math.cos(-cube.rotation.z));
+				cube.position.x -= 0.1*(Math.sin(-cube.rotation.z));
+				if (cubevup === 0) {
+					cubevup = 0.05;
+				}
 			}
 		} else if (cube.riding.type === 'car' && cube.riding.seat === 1) {
 			accel = -0.05
@@ -651,17 +666,25 @@ document.addEventListener('keydown', event => {
 	}
 	if (!cube.riding) {
 		if (event.key === 'a') {
-			cube.position.y -= 0.1*(Math.sin(cube.rotation.z));
-			cube.position.x -= 0.1*(Math.cos(cube.rotation.z));
-			if (cubevup === 0) {
-				cubevup = 0.05;
+			const direction = new THREE.Vector3(-1, 0, 0);
+			direction.applyAxisAngle(new THREE.Vector3(0, 0, 1), cube.rotation.z);
+			if (!wouldHit(cube, direction, scene, 0.7)) {
+				cube.position.y -= 0.1*(Math.sin(cube.rotation.z));
+				cube.position.x -= 0.1*(Math.cos(cube.rotation.z));
+				if (cubevup === 0) {
+					cubevup = 0.05;
+				}
 			}
 			moved = true;
 		} else if (event.key === 'd') {
-			cube.position.y += 0.1*(Math.sin(cube.rotation.z));
-			cube.position.x += 0.1*(Math.cos(cube.rotation.z));
-			if (cubevup === 0) {
-				cubevup = 0.05;
+			const direction = new THREE.Vector3(1, 0, 0);
+			direction.applyAxisAngle(new THREE.Vector3(0, 0, 1), cube.rotation.z);
+			if (!wouldHit(cube, direction, scene, 0.7)) {
+				cube.position.y += 0.1*(Math.sin(cube.rotation.z));
+				cube.position.x += 0.1*(Math.cos(cube.rotation.z));
+				if (cubevup === 0) {
+					cubevup = 0.05;
+				}
 			}
 			moved = true;
 		} else if (event.key === ' ') {
