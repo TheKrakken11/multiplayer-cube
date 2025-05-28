@@ -22,7 +22,7 @@ let peer, conn;
 let movepov = 1;
 let msyup = 0;
 let accel = 0;
-let car, car2, truck, truck2;
+let car, car2, truck, truck2, biplane;
 const vehicles = [];
 let keysDown = new Set();
 // Pointer lock variables
@@ -157,7 +157,39 @@ function loadTruck() {
     );
   });
 }
+function loadBiplane() {
+  return new Promise((resolve, reject) => {
+    const loader = new GLTFLoader();
+    loader.load(
+      'Airplane.glb',
+      (gltf) => {
+        const carModel = gltf.scene;
+        carModel.position.set(0, 0, 0);  // reset position inside wrapper
+        carModel.rotation.set(Math.PI / 2, 0, 0);  // rotate model so that x=π/2 becomes zero
 
+        const car = new THREE.Object3D();
+        car.add(carModel);
+
+        // Now 'car' is the wrapper; you can set position, rotation, scale on it as usual:
+        car.position.set(5, 5, 0);
+        car.scale.set(4, 4, 4);
+        car.up.set(0, 1, 0);
+
+        // Set userData on the wrapper object
+        car.userData = {
+          type: 'plane',
+          maxSeats: 1,
+          seats: [1],
+          speed: 0
+        };
+
+        resolve(car);
+      },
+      undefined,
+      (error) => reject(error)
+    );
+  });
+}
 async function init3D() {
 	scene = new THREE.Scene();
 	scene.background = new THREE.Color(0x87ceeb);
@@ -214,6 +246,12 @@ async function init3D() {
 	truck2.name = 'truck2';
 	vehicles.push(truck2);
 	scene.add(truck2);
+	//biplane = await loadBiplane();
+	//biplane.position.set(17, 5, 0.75);
+	//biplane.rotation.z = -Math.PI / 2
+	//biplane.name = 'biplane';
+	//vehicles.push(biplane);
+	//scene.add(biplane);
 	const geometry = new THREE.BoxGeometry();
 	const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
 	cube = new THREE.Mesh(geometry, material);
@@ -235,7 +273,26 @@ function updateLightPosition() {
 	light.target.position.copy(cube.position); // Focus on cube, not camera
 	light.target.updateMatrixWorld();
 }
+function nearestObjectDistance(originObject, scene) {
+	let closestDistance = Infinity;
+	const originPos = new THREE.Vector3();
+	originObject.getWorldPosition(originPos);
+	scene.traverse(obj => {
+		if (obj.isMesh && obj !== originObject && obj !== plane) {
+			const objPos = new THREE.Vector3();
+			obj.getWorldPosition(objPos);
+			const distance = originPos.distanceTo(objPos);
+			if (distance < closestDistance) {
+				closestDistance = distance;
+			}
+		}
+	});
+	return isFinite(closestDistance) ? closestDistance : null;
+}
 function wouldHit(cube, direction, scene, rayDistance = 0.1, rayDensity = 3) {
+	if (nearestObjectDistance > 2) {
+		return false;
+	}
 	const dir = direction.clone().normalize();
 	const geomet = cube.geometry.clone();
 	geomet.applyMatrix4(cube.matrixWorld);
@@ -267,7 +324,50 @@ function wouldHit(cube, direction, scene, rayDistance = 0.1, rayDensity = 3) {
 	}
 	return false;
 }
-
+function getTightBoundingBox(object) {
+	const box = new THREE.Box3();
+	object.traverse(child => {
+		if (child.isMesh && child.geometry) {
+			child.updateWorldMatrix(true, false);
+			const childBox = new THREE.Box3().setFromObject(child);
+			box.union(childBox);
+		}
+	});
+	return box;
+}
+function scaleBox(box, scaleFactor) {
+	const center = box.getCenter(new THREE.Vector3());
+	const size = box.getSize(new THREE.Vector3()).multiplyScalar(scaleFactor);
+	const halfSize = size.multiplyScalar(0.5);
+	box.min.copy(center).sub(halfSize);
+	box.max.copy(center).add(halfSize);
+	return box;
+}
+function isObjectCollideList(objects, targetObject, moveVector) {
+	targetObject.updateMatrixWorld(true);
+	const targetBox = getTightBoundingBox(targetObject);
+	targetBox.translate(moveVector);
+	if (!targetObject.name.includes('truck')) {
+		scaleBox(targetBox, 0.77)
+	} else if (targetObject.name.includes('truck')) {
+		scaleBox(targetBox, 0.8)
+	}
+	for (const obj of objects) {
+		if (obj === targetObject) continue;
+		obj.updateMatrixWorld(true);
+		const box = getTightBoundingBox(obj);
+		if (!obj.name.includes('truck')) {
+			scaleBox(box, 0.77)
+		} else if (obj.name.includes('truck')) {
+			scaleBox(box, 0.8)
+		}
+		if (targetBox.intersectsBox(box)) {
+			return true;
+		}
+	}
+	return false;
+}
+		
 const raycaster = new THREE.Raycaster();
 const forward = new THREE.Vector3();
 
@@ -296,6 +396,13 @@ function mountVehicle(player, vehicle) {
 		seat : seatNumber,
 		type : vehicle.userData.type
 	};
+	if (player.riding.type === 'plane') {
+		player.position.y = 0.65
+		player.position.z = 0.3
+		player.position.x = -5
+		player.rotation.x = -Math.PI / 9
+		vehicle.add(player)
+	}
 	if (conn && conn.open) {
 		conn.send({
 			type: 'seats',
@@ -350,6 +457,7 @@ function getRollingSquareCenterFromAngle(totalAngle) {
 
 function animate() {
 	requestAnimationFrame(animate);
+	cube.rotation.set(0, 0, cube.rotation.z);
 	rotateBox();
 	if (!cube.riding) {
 		cube.position.z += cubevup;
@@ -374,8 +482,11 @@ function animate() {
 		}
 	} else if (cube.riding.type === 'car') {
 		const rdvhl = cube.riding.id;
-		rdvhl.position.x -= rdvhl.userData.speed * Math.sin(-rdvhl.rotation.z)
-		rdvhl.position.y -= rdvhl.userData.speed * Math.cos(-rdvhl.rotation.z)
+		const moveVector = new THREE.Vector3(rdvhl.userData.speed * Math.sin(-rdvhl.rotation.z), rdvhl.userData.speed * Math.cos(-rdvhl.rotation.z), 0);
+		if (!isObjectCollideList(vehicles, rdvhl, moveVector)) {
+			rdvhl.position.x -= rdvhl.userData.speed * Math.sin(-rdvhl.rotation.z)
+			rdvhl.position.y -= rdvhl.userData.speed * Math.cos(-rdvhl.rotation.z)
+		}
 		cube.visible = false;
 		cube.position.copy(rdvhl.position)
 		if (cube.riding.seat === 1) {
@@ -492,6 +603,8 @@ function animate() {
 
 			camera.lookAt(desiredLookAt);
 		}
+	} else if (cube.riding.type === 'plane') {
+		const rdvhl = cube.riding.id
 	}
 	if (car.userData.seats === 0 && car.userData.speed !== 0) {
 		car.userData.speed *= 0.95
