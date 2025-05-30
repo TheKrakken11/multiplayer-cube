@@ -22,13 +22,14 @@ let peer, conn;
 let movepov = 1;
 let msyup = 0;
 let accel = 0;
-let car, car2, truck, truck2, biplane;
+let car, car2, truck, truck2, airplane;
 const vehicles = [];
 let keysDown = new Set();
 // Pointer lock variables
 let pointerLocked = false;
 const mouse = new THREE.Vector2();
 let mx, mz;
+let mixer, animationAction, clock = new THREE.Clock();
 
 // --- POINTER LOCK IMPLEMENTATION STARTS HERE ---
 
@@ -157,29 +158,34 @@ function loadTruck() {
     );
   });
 }
-function loadBiplane() {
+function loadPlane() {
   return new Promise((resolve, reject) => {
     const loader = new GLTFLoader();
     loader.load(
-      'Airplane.glb',
+      'airplane.glb',
       (gltf) => {
         const carModel = gltf.scene;
         carModel.position.set(0, 0, 0);  // reset position inside wrapper
         carModel.rotation.set(Math.PI / 2, 0, 0);  // rotate model so that x=π/2 becomes zero
-
+		mixer = new THREE.AnimationMixer(carModel);
+		const clip = gltf.animations[0];
+		animationAction = mixer.clipAction(clip);
+		animationAction.clampWhenFinished = true;
+		animationAction.loop = THREE.LoopOnce;
         const car = new THREE.Object3D();
         car.add(carModel);
 
         // Now 'car' is the wrapper; you can set position, rotation, scale on it as usual:
         car.position.set(5, 5, 0);
-        car.scale.set(4, 4, 4);
+        car.scale.set(0.75, 0.75, 0.75);
         car.up.set(0, 1, 0);
+        car.rotation.z = 0
 
         // Set userData on the wrapper object
         car.userData = {
           type: 'plane',
-          maxSeats: 1,
-          seats: [1],
+          maxSeats: 2,
+          seats: [1, 2],
           speed: 0
         };
 
@@ -189,6 +195,26 @@ function loadBiplane() {
       (error) => reject(error)
     );
   });
+}
+function gearUp(anim) {
+	if (anim.isRunning()) {
+		return;
+	}
+	anim.paused = false;
+	anim.timeScale = 1;
+	anim.reset();
+	anim.play();
+}
+function gearDown(anim) {
+	if (anim.isRunning()) {
+		return;
+	}
+	anim.paused = false;
+	anim.timeScale = -1;
+	anim.reset();
+	const duration = anim.getClip().duration;
+	anim.time = duration;
+	anim.play();
 }
 async function init3D() {
 	scene = new THREE.Scene();
@@ -246,12 +272,13 @@ async function init3D() {
 	truck2.name = 'truck2';
 	vehicles.push(truck2);
 	scene.add(truck2);
-	//biplane = await loadBiplane();
-	//biplane.position.set(17, 5, 0.75);
-	//biplane.rotation.z = -Math.PI / 2
-	//biplane.name = 'biplane';
-	//vehicles.push(biplane);
-	//scene.add(biplane);
+	airplane = await loadPlane();
+	airplane.position.set(17, 5, 0.4);
+	airplane.rotation.z = 0
+	airplane.rotation.x = -Math.PI / 23
+	airplane.name = 'plane';
+	vehicles.push(airplane);
+	scene.add(airplane);
 	const geometry = new THREE.BoxGeometry();
 	const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
 	cube = new THREE.Mesh(geometry, material);
@@ -457,6 +484,8 @@ function getRollingSquareCenterFromAngle(totalAngle) {
 
 function animate() {
 	requestAnimationFrame(animate);
+	const delta = clock.getDelta();
+	if (mixer) mixer.update(delta);
 	cube.rotation.set(0, 0, cube.rotation.z);
 	rotateBox();
 	if (!cube.riding) {
@@ -815,6 +844,13 @@ document.addEventListener('keydown', event => {
 		} else if (movepov === 0) {
 			movepov = 1;
 		}
+	}
+});
+document.addEventListener('keydown', event => {
+	if (event.key === 't') {
+		gearUp(animationAction);
+	} else if (event.key === 'v') {
+		gearDown(animationAction);
 	}
 });
 document.addEventListener('keydown', event => {
