@@ -962,10 +962,10 @@ document.addEventListener('keydown', event => {
 		} else if (cube.riding.type === 'car' && cube.riding.seat === 1) {
 			accel = 0.05
 		} else if (cube.riding.type === 'plane' && cube.riding.seat === 1) {
-			if (cube.riding.id.userData.thrust < 4940) {
-				cube.riding.id.userData.thrust += 52
-			} else if (cube.riding.id.userData.thrust > 4940) {
-				cube.riding.id.userData.thrust = 4940
+			if (cube.riding.id.userData.thrust < 7500) {
+				cube.riding.id.userData.thrust += 75
+			} else if (cube.riding.id.userData.thrust > 7500) {
+				cube.riding.id.userData.thrust = 7500
 			}
 		}
 		moved = true;
