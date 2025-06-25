@@ -1,5 +1,6 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import { GLTFLoader } from './GLTFLoader.js';
+import { AirplanePhysics } from './AirplanePhysics.js';
 import {
   computeBoundsTree,
   disposeBoundsTree,
@@ -15,6 +16,7 @@ await new Promise((resolve, reject) => {
 	script.onerror = reject;
 	document.body.appendChild(script);
 });
+let start = Date.now() + 1000;
 let scene, camera, renderer;
 let cube, peerCube, plane;
 let light;
@@ -23,6 +25,9 @@ let movepov = 1;
 let msyup = 0;
 let accel = 0;
 let car, car2, truck, truck2, airplane;
+let airplanePhysics;
+let attind;
+let thrust;
 const vehicles = [];
 let keysDown = new Set();
 // Pointer lock variables
@@ -167,6 +172,7 @@ function loadPlane() {
         const carModel = gltf.scene;
         carModel.position.set(0, 0, 0);  // reset position inside wrapper
         carModel.rotation.set(Math.PI / 2, 0, 0);  // rotate model so that x=π/2 becomes zero
+		carModel.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), Math.PI);
 		mixer = new THREE.AnimationMixer(carModel);
 		const clip = gltf.animations[0];
 		animationAction = mixer.clipAction(clip);
@@ -186,7 +192,8 @@ function loadPlane() {
           type: 'plane',
           maxSeats: 2,
           seats: [1, 2],
-          speed: 0
+          speed: 0,
+          thrust: 0
         };
 
         resolve(car);
@@ -249,10 +256,19 @@ async function init3D() {
 		metalness: 0.2,
 		roughness: 0.8
 	});
-	const plane = new THREE.Mesh(geopl, mat);
-	plane.position.z = -0.5;
-	plane.receiveShadow = true;
-	scene.add(plane);
+	plane = await new Promise((resolve) => {
+		const geopl = new THREE.PlaneGeometry(100000, 100000);
+		const mat = new THREE.MeshStandardMaterial({
+			color: 0x228B22,
+			metalness: 0.2,
+			roughness: 0.8
+		});
+		const p = new THREE.Mesh(geopl, mat);
+		p.position.z = -0.5;
+		p.receiveShadow = true;
+		scene.add(p);
+		resolve(p);
+	});
 	car = await loadCar();
 	car.name = 'car';
 	vehicles.push(car);
@@ -273,12 +289,32 @@ async function init3D() {
 	vehicles.push(truck2);
 	scene.add(truck2);
 	airplane = await loadPlane();
-	airplane.position.set(17, 5, 0.4);
-	airplane.rotation.z = 0
-	airplane.rotation.x = -Math.PI / 23
+	airplane.position.set(5, 12, 1);
+	airplane.userData.airplanePhysics = new AirplanePhysics(airplane);
+	airplane.userData.airplanePhysics.applyControls(Math.PI / 23, 0, 0);
+	airplane.userData.thrust = 0
 	airplane.name = 'plane';
 	vehicles.push(airplane);
 	scene.add(airplane);
+	const sphereGeo = new THREE.SphereGeometry(1, 32, 32, 0, Math.PI * 2, 0, Math.PI / 2);
+	const skyMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff, side: THREE.DoubleSide });
+	const sky = new THREE.Mesh(sphereGeo, skyMaterial);
+	const groundGeo = new THREE.SphereGeometry(1, 32, 32, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+	const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.DoubleSide });
+	const ground = new THREE.Mesh(groundGeo, groundMaterial);
+	scene.add(camera);
+	attind = new THREE.Group()
+	attind.add(sky)
+	attind.add(ground);
+	attind.scale.set(0.2, 0.2, 0.2);
+	camera.add(attind);
+	attind.position.set(0.85, -0.3, -1.2);
+	const reticleGeo = new THREE.RingGeometry(0.02, 0.03, 32);
+	const reticleMat = new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide });
+	const headingReticle = new THREE.Mesh(reticleGeo, reticleMat);
+	headingReticle.scale.set(2, 2, 2)
+	camera.add(headingReticle);
+	headingReticle.position.set(0.75, -0.3, -1); // local to camera
 	const geometry = new THREE.BoxGeometry();
 	const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
 	cube = new THREE.Mesh(geometry, material);
@@ -340,7 +376,7 @@ function wouldHit(cube, direction, scene, rayDistance = 0.1, rayDensity = 3) {
 	}
 	const testObjects = [];
 	scene.traverse(obj => {
-		if (obj.isMesh && obj !== cube && obj !== plane) testObjects.push(obj);
+		if (obj.isMesh && obj !== cube && obj !== plane && obj !== attind) testObjects.push(obj);
 	});
 	for (const origin of rays) {
 		raycaster.set(origin, dir);
@@ -394,23 +430,96 @@ function isObjectCollideList(objects, targetObject, moveVector) {
 	}
 	return false;
 }
-		
+function rotateBoundingBox(box, rotx, roty, rotz) {
+    const center = box.getCenter(new THREE.Vector3());
+
+    const rotX = new THREE.Matrix4().makeRotationX(rotx);
+    const rotY = new THREE.Matrix4().makeRotationY(roty);
+    const rotZ = new THREE.Matrix4().makeRotationZ(rotz);
+
+    const rotMatrix = new THREE.Matrix4()
+        .multiply(rotZ)
+        .multiply(rotY)
+        .multiply(rotX);
+
+    const translationToOrigin = new THREE.Matrix4().makeTranslation(-center.x, -center.y, -center.z);
+    const translationBack = new THREE.Matrix4().makeTranslation(center.x, center.y, center.z);
+
+    const fullTransform = new THREE.Matrix4()
+        .multiply(translationBack)
+        .multiply(rotMatrix)
+        .multiply(translationToOrigin);
+
+    const points = [
+        new THREE.Vector3(box.min.x, box.min.y, box.min.z),
+        new THREE.Vector3(box.min.x, box.min.y, box.max.z),
+        new THREE.Vector3(box.min.x, box.max.y, box.min.z),
+        new THREE.Vector3(box.max.x, box.min.y, box.min.z),
+        new THREE.Vector3(box.min.x, box.max.y, box.max.z),
+        new THREE.Vector3(box.max.x, box.min.y, box.max.z),
+        new THREE.Vector3(box.max.x, box.max.y, box.min.z),
+        new THREE.Vector3(box.max.x, box.max.y, box.max.z)
+    ];
+
+    points.forEach(p => p.applyMatrix4(fullTransform));
+
+    return new THREE.Box3().setFromPoints(points);
+}
+function hitGround(aircraft, xrot = 0, yrot = 0, zrot = 0, mvz = 0, ground = plane) {
+    aircraft.updateMatrixWorld(true);
+    let planebox = getTightBoundingBox(aircraft);
+    planebox = rotateBoundingBox(planebox, xrot, yrot, zrot);
+
+    // Move the bounding box down/up
+    planebox.min.z += mvz;
+    planebox.max.z += mvz;
+    const groundbox = new THREE.Box3().setFromObject(ground);
+
+    return planebox.intersectsBox(groundbox);
+}
+let lastFrameTime = performance.now();
+let frameCount = 0;
+let fps = 0;
+function getFPS() {
+	const now = performance.now();
+	frameCount++;
+	const delta = now - lastFrameTime;
+	if (delta >= 1000) {
+		fps = frameCount;
+		frameCount = 0;
+		lastFrameTime = now;
+	}
+	return fps;
+}
+let lastTime = performance.now();
+let lastUpdateTime = Date.now();
+function getDT() {
+	const now = performance.now();
+	const dt = (now - lastTime) / 1000;
+	lastTime = now;
+	return dt;
+}
 const raycaster = new THREE.Raycaster();
 const forward = new THREE.Vector3();
 
-function canMount(player, vehicle, maxDistance = 3) {
+function canMount(player, vehicle, maxDistance = 5) {
 	const playerPos = new THREE.Vector3();
 	player.getWorldPosition(playerPos);
-	const vehiclePos = new THREE.Vector3();
-	vehicle.getWorldPosition(vehiclePos);
-	const distance = playerPos.distanceTo(vehiclePos);
+
+	const vehicleBox = new THREE.Box3().setFromObject(vehicle);
+	const vehicleCenter = vehicleBox.getCenter(new THREE.Vector3());
+	const distance = playerPos.distanceTo(vehicleCenter);
+
 	if (distance > maxDistance) return false;
-	forward.set(0, 1, 0)
-	forward.applyQuaternion(player.quaternion).normalize();
-	raycaster.set(playerPos, forward);
-	const intersects = raycaster.intersectObject(vehicle, true);
-	return intersects.length > 0;
+
+	// Ray from player forward
+	const forward = new THREE.Vector3(0, 1, 0).applyQuaternion(player.quaternion).normalize();
+	const ray = new THREE.Ray(playerPos, forward);
+
+	// Test if the ray intersects the vehicle's bounding box
+	return ray.intersectsBox(vehicleBox);
 }
+
 
 function mountVehicle(player, vehicle) {
 	if (vehicle.userData.seats.length === 0) {
@@ -423,13 +532,6 @@ function mountVehicle(player, vehicle) {
 		seat : seatNumber,
 		type : vehicle.userData.type
 	};
-	if (player.riding.type === 'plane') {
-		player.position.y = 0.65
-		player.position.z = 0.3
-		player.position.x = -5
-		player.rotation.x = -Math.PI / 9
-		vehicle.add(player)
-	}
 	if (conn && conn.open) {
 		conn.send({
 			type: 'seats',
@@ -488,6 +590,18 @@ function animate() {
 	if (mixer) mixer.update(delta);
 	cube.rotation.set(0, 0, cube.rotation.z);
 	rotateBox();
+	if (!cube.riding || cube.riding.type != 'plane') {
+		camera.visible = false;
+		document.getElementById('speed').style.display = 'none';
+		document.getElementById('thrust').style.display = 'none';
+		document.getElementById('zmv').style.display = 'none';
+		document.getElementById('alt').style.display = 'none';
+	} else {
+		document.getElementById('speed').style.display = 'block';
+		document.getElementById('thrust').style.display = 'block';
+		document.getElementById('zmv').style.display = 'block';
+		document.getElementById('alt').style.display = 'block';
+	}
 	if (!cube.riding) {
 		cube.position.z += cubevup;
 		if (cube.position.z > 0) {
@@ -634,7 +748,66 @@ function animate() {
 		}
 	} else if (cube.riding.type === 'plane') {
 		const rdvhl = cube.riding.id
+		cube.visible = false;
+		cube.position.copy(rdvhl.position);
+		const planeQuat = new THREE.Quaternion();
+		rdvhl.getWorldQuaternion(planeQuat);
+		const euler = new THREE.Euler();
+		euler.setFromQuaternion(planeQuat, 'YXZ');
+		attind.rotation.x = euler.x;
+		attind.rotation.y = euler.z;
+		//show details
+		const MpS = rdvhl.userData.airplanePhysics.velocity.length();
+		const knots = MpS * 1.94384;
+		const fixedKnots = knots.toFixed(1);
+		document.getElementById('speed').textContent = `Speed: ${fixedKnots} kts`;
+		document.getElementById('thrust').textContent = `Thrust: ${((rdvhl.userData.thrust) / 4.448).toFixed(1)} lbs of force`;
+		const vup = rdvhl.userData.airplanePhysics.velocity.z;
+		const vupkts = vup * 1.94384;
+		let fksdvupkts = vupkts.toFixed(1);
+		document.getElementById('zmv').textContent = `Vertical speed: ${(fksdvupkts * 1.68781).toFixed(1)} fps`;
+		document.getElementById('alt').textContent = `Altitude: ${(cube.position.z * 3.281).toFixed(1)} ft`;
+		if (movepov === 0) {
+			let offset
+			offset = new THREE.Vector3(0, 0.5, 0.75);
+			offset.applyQuaternion(rdvhl.quaternion);
+			camera.position.copy(rdvhl.position.clone().add(offset));
+			let lookAtOffset
+			lookAtOffset = new THREE.Vector3(0, 1.5, 0.75);
+			lookAtOffset.applyQuaternion(rdvhl.quaternion);
+			camera.lookAt(rdvhl.position.clone().add(lookAtOffset));
+		} else if (movepov === 1) {
+			const relativeCameraOffset = new THREE.Vector3(0, -6, 3);
+			const desiredCameraPos = relativeCameraOffset.clone().applyQuaternion(rdvhl.quaternion).add(rdvhl.position);
+			const lookAtOffset = new THREE.Vector3(0, 2, 2.75);
+			const desiredLookAt = lookAtOffset.clone().applyQuaternion(rdvhl.quaternion).add(rdvhl.position);
+			// Detect significant rotation change
+			const currentQuat = camera.quaternion.clone();
+			const targetQuat = rdvhl.quaternion.clone();
+			const angle = currentQuat.angleTo(targetQuat);
+
+			const snapRotationThreshold = 0.2; // radians (~11.5 degrees)
+
+			if (angle > snapRotationThreshold) {
+				// Snap immediately
+				camera.position.copy(desiredCameraPos);
+			} else {
+				// Smooth follow
+				camera.position.lerp(desiredCameraPos, 0.3);
+			}
+				camera.lookAt(desiredLookAt);
+		}
 	}
+	if (Date.now() > start) {
+		if (lastUpdateTime < start) {
+			lastUpdateTime = Infinity;
+			lastTime = performance.now();
+		}
+		const bbox = new THREE.Box3().setFromObject(airplane);
+		const minZ = bbox.min.z;
+		airplane.userData.airplanePhysics.update(airplane.userData.thrust, minZ + 0.5, getDT());
+	}
+	console.log(airplane.position.z);
 	if (car.userData.seats === 0 && car.userData.speed !== 0) {
 		car.userData.speed *= 0.95
 		if (Math.abs(car.userData.speed) < 0.01) {
@@ -788,6 +961,12 @@ document.addEventListener('keydown', event => {
 			}
 		} else if (cube.riding.type === 'car' && cube.riding.seat === 1) {
 			accel = 0.05
+		} else if (cube.riding.type === 'plane' && cube.riding.seat === 1) {
+			if (cube.riding.id.userData.thrust < 4940) {
+				cube.riding.id.userData.thrust += 52
+			} else if (cube.riding.id.userData.thrust > 4940) {
+				cube.riding.id.userData.thrust = 4940
+			}
 		}
 		moved = true;
 	} else if (event.key === 's') {
@@ -803,32 +982,58 @@ document.addEventListener('keydown', event => {
 			}
 		} else if (cube.riding.type === 'car' && cube.riding.seat === 1) {
 			accel = -0.05
+		} else if (cube.riding.type === 'plane' && cube.riding.seat === 1) {
+			if (cube.riding.id.userData.thrust > 0) {
+				cube.riding.id.userData.thrust -= 260
+			} else if (cube.riding.id.userData.thrust < 0) {
+				cube.riding.id.userData.thrust = 0
+			}
 		}
 		moved = true;
 	}
-	if (!cube.riding) {
+	if (!(cube.riding && cube.riding.type === 'car')) {
 		if (event.key === 'a') {
-			const direction = new THREE.Vector3(-1, 0, 0);
-			direction.applyAxisAngle(new THREE.Vector3(0, 0, 1), cube.rotation.z);
-			if (!wouldHit(cube, direction, scene, 0.7)) {
-				cube.position.y -= 0.1*(Math.sin(cube.rotation.z));
-				cube.position.x -= 0.1*(Math.cos(cube.rotation.z));
-				if (cubevup === 0) {
-					cubevup = 0.05;
+			if (!cube.riding) {
+				const direction = new THREE.Vector3(-1, 0, 0);
+				direction.applyAxisAngle(new THREE.Vector3(0, 0, 1), cube.rotation.z);
+				if (!wouldHit(cube, direction, scene, 0.7)) {
+					cube.position.y -= 0.1*(Math.sin(cube.rotation.z));
+					cube.position.x -= 0.1*(Math.cos(cube.rotation.z));
+					if (cubevup === 0) {
+						cubevup = 0.05;
+					}
+				}
+			} else {
+				if (cube.riding.type === 'plane' && cube.riding.seat === 1) {
+					if (!hitGround(cube.riding.id, 0, 0, 0.03, 0, plane)) {
+						cube.riding.id.userData.airplanePhysics.applyControls(0, 0.1, 0)
+					} else {
+						cube.riding.id.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), 0.03);
+					}
 				}
 			}
 			moved = true;
 		} else if (event.key === 'd') {
-			const direction = new THREE.Vector3(1, 0, 0);
-			direction.applyAxisAngle(new THREE.Vector3(0, 0, 1), cube.rotation.z);
-			if (!wouldHit(cube, direction, scene, 0.7)) {
-				cube.position.y += 0.1*(Math.sin(cube.rotation.z));
-				cube.position.x += 0.1*(Math.cos(cube.rotation.z));
-				if (cubevup === 0) {
-					cubevup = 0.05;
+			if (!cube.riding) {
+				const direction = new THREE.Vector3(1, 0, 0);
+				direction.applyAxisAngle(new THREE.Vector3(0, 0, 1), cube.rotation.z);
+				if (!wouldHit(cube, direction, scene, 0.7)) {
+					cube.position.y += 0.1*(Math.sin(cube.rotation.z));
+					cube.position.x += 0.1*(Math.cos(cube.rotation.z));
+					if (cubevup === 0) {
+						cubevup = 0.05;
+					}
+				}
+				moved = true;
+			} else {
+				if (cube.riding.type === 'plane' && cube.riding.seat === 1) {
+					if (!hitGround(cube.riding.id, 0, 0, -0.03, 0, plane)) {
+						cube.riding.id.userData.airplanePhysics.applyControls(0, -0.1, 0)
+					} else {
+						cube.riding.id.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), -0.03);
+					}
 				}
 			}
-			moved = true;
 		} else if (event.key === ' ') {
 			if (cubevup === 0) {
 				cubevup = 0.2;
@@ -851,6 +1056,36 @@ document.addEventListener('keydown', event => {
 		gearUp(animationAction);
 	} else if (event.key === 'v') {
 		gearDown(animationAction);
+	} else if (event.key === 'ArrowUp') {
+		if (cube.riding && cube.riding.type === 'plane') {
+			if (!hitGround(cube.riding.id, 0.05, 0, 0, 0, plane)) {
+				cube.riding.id.userData.airplanePhysics.applyControls(0.1, 0, 0)
+			}
+		}
+	} else if (event.key === 'ArrowDown') {
+		if (cube.riding && cube.riding.type === 'plane') {
+			if (cube.riding) {
+				if (!hitGround(cube.riding.id, -0.05, 0, 0, 0, plane)) {
+					cube.riding.id.userData.airplanePhysics.applyControls(-0.1, 0, 0)
+				}
+			}
+		}
+	} else if (event.key === 'ArrowLeft') {
+		if (cube.riding && cube.riding.type === 'plane') {
+			if (cube.riding) {
+				if (!hitGround(cube.riding.id, 0.07, 0, 0, 0, plane)) {
+					cube.riding.id.userData.airplanePhysics.applyControls(0, 0, 0.1)
+				}
+			}
+		}
+	} else if (event.key === 'ArrowRight') {
+		if (cube.riding && cube.riding.type === 'plane') {
+			if (cube.riding) {
+				if (!hitGround(cube.riding.id, -0.07, 0, 0, 0, plane)) {
+					cube.riding.id.userData.airplanePhysics.applyControls(0, 0, -0.1)
+				}
+			}
+		}
 	}
 });
 document.addEventListener('keydown', event => {
