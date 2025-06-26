@@ -4,7 +4,7 @@ export class AirplanePhysics {
 	constructor(aircraftObject) {
 		this.aircraft = aircraftObject;
 		this.velocity = new THREE.Vector3(0, 0, 0);
-		this.mass = 1800;
+		this.mass = 2500;
 		this.wingArea = 20;
 		this.spring_stiffness = 1000;
 		this.damping_coeff = 7500;
@@ -15,7 +15,7 @@ export class AirplanePhysics {
 		this.Cl0 = 0.2;
 		this.Cla = 5.7;
 		this.Cd0 = 0.02;
-		this.k = 0.05;
+		this.k = 0.06;
 		this.pitchRate = 0.5;
 		this.yawRate = 0.3;
 		this.rollRate = 0.7;
