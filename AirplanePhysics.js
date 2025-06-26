@@ -6,9 +6,9 @@ export class AirplanePhysics {
 		this.velocity = new THREE.Vector3(0, 0, 0);
 		this.mass = 1800;
 		this.wingArea = 20;
-		this.spring_stiffness = 1000;
-		this.damping_coeff = 7500;
-		this.rest_length = 0.3;
+		this.spring_stiffness = 20000;
+		this.damping_coeff = 15000;
+		this.rest_length = 0.5;
 		this.rho = 1.225;
 		this.gravityAccel = -9.81;
 		this.ClMax = 1.5;
