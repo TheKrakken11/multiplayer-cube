@@ -97,6 +97,12 @@ document.addEventListener('keydown', (event) => {
 });
 
 // --- END POINTER LOCK IMPLEMENTATION ---
+function random(min, max) {
+	return Math.random() * (max - min) + min;
+}
+function randomInt(min, max) {
+	return Math.floor(random(min, max));
+}
 function loadCar() {
   return new Promise((resolve, reject) => {
     const loader = new GLTFLoader();
@@ -203,6 +209,26 @@ function loadPlane() {
     );
   });
 }
+function makeTree(x, y) {
+	return new Promise((resolve, reject) => {
+		const loader = new GLTFLoader();
+		loader.load(
+			'Tree.glb',
+			(gltf) => {
+				const tree = gltf.scene;
+				tree.position.set(x, y, 0);
+				tree.rotation.x = Math.PI / 2
+				tree.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), random(0, (2 * Math.PI)));
+				const scale = random(0.3, 1);
+				tree.scale.set(scale, scale, scale);
+				tree.position.z = 7 * scale;
+				resolve(tree);
+			},
+			undefined,
+			(error) => reject(error)
+		);
+	});
+}
 function gearUp(anim) {
 	if (anim.isRunning()) {
 		return;
@@ -291,11 +317,18 @@ async function init3D() {
 	airplane = await loadPlane();
 	airplane.position.set(5, 12, 1);
 	airplane.userData.airplanePhysics = new AirplanePhysics(airplane);
-	airplane.userData.airplanePhysics.applyControls(Math.PI / 23, 0, 0);
+	airplane.rotateX(Math.PI / 23);
 	airplane.userData.thrust = 0
+	airplane.userData.braking = false;
 	airplane.name = 'plane';
 	vehicles.push(airplane);
 	scene.add(airplane);
+	for (let i = 0; i < 100; i++) {
+		const treex = randomInt(-250, 250);
+		const treey = randomInt(-250, 250);
+		const tree = await makeTree(treex, treey);
+		scene.add(tree);
+	}
 	const sphereGeo = new THREE.SphereGeometry(1, 32, 32, 0, Math.PI * 2, 0, Math.PI / 2);
 	const skyMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff, side: THREE.DoubleSide });
 	const sky = new THREE.Mesh(sphereGeo, skyMaterial);
@@ -596,11 +629,14 @@ function animate() {
 		document.getElementById('thrust').style.display = 'none';
 		document.getElementById('zmv').style.display = 'none';
 		document.getElementById('alt').style.display = 'none';
+		document.getElementById('warn').style.display = 'none';
+		document.getElementById('braking').style.display = 'none';
 	} else {
 		document.getElementById('speed').style.display = 'block';
 		document.getElementById('thrust').style.display = 'block';
 		document.getElementById('zmv').style.display = 'block';
 		document.getElementById('alt').style.display = 'block';
+		document.getElementById('braking').style.display = 'block';
 	}
 	if (!cube.riding) {
 		cube.position.z += cubevup;
@@ -767,6 +803,15 @@ function animate() {
 		let fksdvupkts = vupkts.toFixed(1);
 		document.getElementById('zmv').textContent = `Vertical speed: ${(fksdvupkts * 1.68781).toFixed(1)} fps`;
 		document.getElementById('alt').textContent = `Altitude: ${(cube.position.z * 3.281).toFixed(1)} ft`;
+		document.getElementById('warn').style.display = 'none';
+		const box = document.getElementById('braking');
+		if (cube.riding.id.userData.braking) {
+			box.style.boxShadow = '0 0 20px 5px rgba(0, 255, 255, 0.8)';
+			box.style.backgroundColor = '#6CA6CD';
+		} else {
+			box.style.boxShadow = '0 0 10px rgba(0, 255, 255, 0)';
+			box.style.backgroundColor = '#555';
+		}
 		if (movepov === 0) {
 			let offset
 			offset = new THREE.Vector3(0, 0.5, 0.75);
@@ -805,9 +850,8 @@ function animate() {
 		}
 		const bbox = new THREE.Box3().setFromObject(airplane);
 		const minZ = bbox.min.z;
-		airplane.userData.airplanePhysics.update(airplane.userData.thrust, minZ + 0.5, getDT());
+		airplane.userData.airplanePhysics.update(airplane.userData.thrust, minZ + 0.5, getDT(), airplane.userData.braking);
 	}
-	console.log(airplane.position.z);
 	if (car.userData.seats === 0 && car.userData.speed !== 0) {
 		car.userData.speed *= 0.95
 		if (Math.abs(car.userData.speed) < 0.01) {
@@ -1056,6 +1100,12 @@ document.addEventListener('keydown', event => {
 		gearUp(animationAction);
 	} else if (event.key === 'v') {
 		gearDown(animationAction);
+	} else if (event.key === 'g') {
+		if (cube.riding && cube.riding.type === 'plane') {
+			if (cube.riding.seat === 1) {
+				cube.riding.id.userData.braking = !cube.riding.id.userData.braking;
+			}
+		}
 	} else if (event.key === 'ArrowUp') {
 		if (cube.riding && cube.riding.type === 'plane') {
 			if (!hitGround(cube.riding.id, 0.05, 0, 0, 0, plane)) {

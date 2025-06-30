@@ -54,7 +54,7 @@ export class AirplanePhysics {
 		const dragDir = this.velocity.clone().normalize().negate();
 		return dragDir.multiplyScalar(dragMagnitude);
 	}
-	getThrustForce(thrustInput) {
+	getThrustForce(thrustInput, isOnGround) {
 		const forward = new THREE.Vector3(0, 1, 0).applyQuaternion(this.aircraft.quaternion);
 		return forward.multiplyScalar(thrustInput);
 	}
@@ -74,19 +74,37 @@ export class AirplanePhysics {
 		const totalForce = springForce - dampingForce;
 		return new THREE.Vector3(0, 0, totalForce);
 	}
-	applyControls(pitchInput, yawInput, rollInput, dt = 1) {
-		this.aircraft.rotateX(pitchInput * this.pitchRate * dt);
-		this.aircraft.rotateZ(yawInput * this.yawRate * dt);
-		this.aircraft.rotateY(rollInput * this.rollRate * dt);
+	applyControls(pitchInput, yawInput, rollInput, dt = 1, test = false) {
+		this.minControlSpeed ??= 10;
+		this.maxControlSpeed ??= 120;
+		const speed = this.velocity.length();
+		const speedFactor = THREE.MathUtils.clamp(
+			(speed - this.minControlSpeed) / (this.maxControlSpeed - this.minControlSpeed),
+			0,
+			1
+		);
+		const effectiveness = speedFactor * speedFactor;
+		if (!test) {
+			this.aircraft.rotateX(pitchInput * this.pitchRate * effectiveness * dt);
+			this.aircraft.rotateZ(yawInput * this.yawRate * effectiveness * dt);
+			this.aircraft.rotateY(rollInput * this.rollRate * effectiveness * dt);
+		} else if (test === 'x') {
+			return(pitchInput * this.pitchRate * effectiveness * dt)
+		} else if (test === 'z') {
+			return(yawInput * this.yawRate * effectiveness * dt)
+		} else if (test === 'y') {
+			return(rollInput * this.rollRate * effectiveness * dt)
+		}
 	}
-	update(thrustInput, groundDistance = null, dt = 1) {
+	update(thrustInput, groundDistance = null, dt = 1, braking = false) {
 		const isOnGround = groundDistance !== null && groundDistance <= 0.025;
+		const isReasonablyOnGround = groundDistance !== null && groundDistance <= 0.2;
 		const alpha = this.getAoA();
 		const Cl = this.getLiftCoefficient(alpha);
 		const Cd = this.getDragCoefficient(Cl);
 		const lift = this.getLiftForce(Cl);
 		const drag = this.getDragForce(Cd);
-		const thrust = this.getThrustForce(thrustInput);
+		const thrust = this.getThrustForce(thrustInput, isReasonablyOnGround);
 		const gravity = this.getGravityForce(isOnGround);
 		const directionalForce = new THREE.Vector3()
 			.add(thrust)
@@ -100,6 +118,23 @@ export class AirplanePhysics {
 		const realignStrength = 0.05;
 		this.direction_based.lerp(forward.multiplyScalar(currentSpeed), realignStrength);
 		// end lerp
+		if (isReasonablyOnGround) {
+			const localVel = this.velocity.clone().applyQuaternion(this.aircraft.quaternion.clone().invert());
+			const forwardVel = localVel.y;
+			const lateralVel = localVel.x;
+			let rollingCoeff = 0.002;
+			if (braking) {
+				rollingCoeff = 0.02;
+			}
+			const lateralCoeff = 0.7;
+			const normalForce = this.mass * Math.abs(this.gravityAccel);
+			const forwardFriction = -forwardVel * rollingCoeff * normalForce;
+			const lateralFriction = -lateralVel * lateralCoeff * normalForce;
+			const localFrictionForce = new THREE.Vector3(lateralFriction, forwardFriction, 0);
+			const worldFriction = localFrictionForce.applyQuaternion(this.aircraft.quaternion);
+			const frictionAccel = worldFriction.divideScalar(this.mass);
+			this.direction_based.add(frictionAccel.multiplyScalar(dt));
+		}
 		const verticalForce = new THREE.Vector3()
 			.add(lift)
 			.add(gravity);
